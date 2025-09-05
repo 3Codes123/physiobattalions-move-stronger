@@ -6,41 +6,36 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import communityPhysio1 from "@/assets/community-physio-1.jpg";
-import communityPhysio2 from "@/assets/community-physio-2.jpg";
-import communityPhysio3 from "@/assets/community-physio-3.jpg";
-import communityPhysio4 from "@/assets/community-physio-4.jpg";
-import communityPhysio5 from "@/assets/community-physio-5.jpg";
-import communityPhysio6 from "@/assets/community-physio-6.jpg";
 
+// Using placeholder images that won't cause build errors
 const communityPhysioImages = [
   {
-    src: communityPhysio1,
+    src: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=800&h=600&fit=crop",
     alt: "Community physiotherapy - outdoor assistance",
     title: "Outdoor Mobility Support"
   },
   {
-    src: communityPhysio2,
+    src: "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=800&h=600&fit=crop",
     alt: "Home physiotherapy session",
     title: "Home-Based Care"
   },
   {
-    src: communityPhysio3,
+    src: "https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=800&h=600&fit=crop",
     alt: "Rehabilitation with parallel bars",
     title: "Mobility Training"
   },
   {
-    src: communityPhysio4,
+    src: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop",
     alt: "Group physiotherapy class",
     title: "Community Programs"
   },
   {
-    src: communityPhysio5,
+    src: "https://images.unsplash.com/photo-1559757175-0eb30cd2ecbb?w=800&h=600&fit=crop",
     alt: "Clinical physiotherapy treatment",
     title: "Professional Treatment"
   },
   {
-    src: communityPhysio6,
+    src: "https://images.unsplash.com/photo-1594824797284-d3f8bb41b745?w=800&h=600&fit=crop",
     alt: "Prenatal physiotherapy",
     title: "Specialized Care"
   }
@@ -77,6 +72,7 @@ const PhotoGallery = ({ title = "Community Physiotherapy Gallery", subtitle = "S
                         src={image.src}
                         alt={image.alt}
                         className="w-full h-full object-cover hover:scale-105 transition-smooth"
+                        loading="lazy"
                       />
                     </div>
                     <div className="p-4">
