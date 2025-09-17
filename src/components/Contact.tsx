@@ -178,31 +178,34 @@ const isTimeSlotAvailable = (slotTime: string, selectedDate: Date | null): boole
 };
 
 const Contact = () => {
-  // Step 1: User info and service selection
+  // Form State
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
-    serviceId: '',
     message: ''
   });
-  
-  // Step 2: Date and time selection
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   
   // UI State
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmedBookingDetails, setConfirmedBookingDetails] = useState<{ serviceName: string; date: string; time: string } | null>(null);
   
   // Get selected service details
-  const selectedService = services.find(s => s.id === formData.serviceId);
+  const selectedService = services.find(s => s.id === selectedServiceId);
   
   // Handle service selection
   const handleServiceSelect = (serviceId: string) => {
-    setFormData(prev => ({ ...prev, serviceId }));
+    setSelectedServiceId(serviceId);
   };
   
 
@@ -251,76 +254,108 @@ const Contact = () => {
     setSelectedTime(time);
   };
   
-  const handleNextStep = () => {
-    if (step === 1 && formData.serviceId) {
+  const handleSendOtp = async () => {
+    if (formData.email.trim() === '') {
+      alert('Please enter your email address.');
+      return;
+    }
+    // In a real app, you would call an API to send the OTP
+    console.log(`Sending OTP to ${formData.email}`);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+    setIsOtpSent(true);
+    alert('An OTP has been sent to your email.');
+  };
+
+  const handleVerifyOtp = async () => {
+    // In a real app, you would verify the OTP with your backend
+    if (otp === '123456') { // Mock OTP
+      setIsEmailVerified(true);
+      alert('Email verified successfully!');
       setStep(2);
-    } else if (step === 2 && selectedDate && selectedTime) {
+    } else {
+      alert('Invalid OTP. Please try again.');
+    }
+  };
+
+  const handleNextStep = () => {
+    if (step === 1 && isStep1Valid()) {
+      handleVerifyOtp(); // Step 1 is now user info + OTP
+    } else if (step === 2 && isStep2Valid()) {
       setStep(3);
+    } else if (step === 3 && isStep3Valid()) {
+      setStep(4);
     }
   };
   
-  // Check if form is valid for step 1
+  // Step 1: User Info & OTP
   const isStep1Valid = () => {
     return (
       formData.firstName.trim() !== '' &&
       formData.lastName.trim() !== '' &&
       formData.email.trim() !== '' &&
       formData.phone.trim() !== '' &&
-      formData.serviceId !== ''
+      isEmailVerified
     );
   };
-  
-  // Check if form is valid for step 2
+
+  // Step 2: Service Selection
   const isStep2Valid = () => {
+    return selectedServiceId !== '';
+  };
+
+  // Step 3: Date & Time Selection
+  const isStep3Valid = () => {
     return selectedDate !== null && selectedTime !== '';
   };
   
   const handlePrevStep = () => {
     if (step > 1) {
-      setStep(step - 1 as 1 | 2 | 3);
+      setStep(step - 1 as 1 | 2 | 3 | 4);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedService) return;
+    if (!selectedService || !selectedDate || !selectedTime) return;
+
+    // Final validation for user info
+    if (
+      formData.firstName.trim() === '' ||
+      formData.lastName.trim() === '' ||
+      formData.email.trim() === '' ||
+      formData.phone.trim() === ''
+    ) {
+      alert('Please fill in all required fields.');
+      return;
+    }
     
     setIsSubmitting(true);
     
     try {
-      // Create form data for submission
-      const formDataToSubmit = new FormData();
-      formDataToSubmit.append('firstName', formData.firstName);
-      formDataToSubmit.append('lastName', formData.lastName);
-      formDataToSubmit.append('email', formData.email);
-      formDataToSubmit.append('phone', formData.phone);
-      formDataToSubmit.append('serviceId', formData.serviceId);
-      formDataToSubmit.append('serviceName', selectedService.name);
-      formDataToSubmit.append('date', selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '');
-      formDataToSubmit.append('time', selectedTime);
-      formDataToSubmit.append('message', formData.message);
-      
       // In a real app, you would make an API call here
       console.log('Booking details:', {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
+        ...formData,
         service: {
           id: selectedService.id,
           name: selectedService.name,
-          type: selectedService.type,
         },
-        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null,
+        date: format(selectedDate, 'yyyy-MM-dd'),
         time: selectedTime,
-        message: formData.message
       });
       
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
+      // Store details for confirmation modal
+      setConfirmedBookingDetails({
+        serviceName: selectedService.name,
+        date: format(selectedDate, 'EEEE, MMMM d, yyyy'),
+        time: selectedTime,
+      });
+
       // Reset form
       setStep(1);
+      setSelectedServiceId('');
       setSelectedDate(null);
       setSelectedTime('');
       setFormData({
@@ -328,12 +363,10 @@ const Contact = () => {
         lastName: '',
         email: '',
         phone: '',
-        serviceId: '',
         message: ''
       });
       
-      // Show success message
-      alert('Appointment booked successfully!');
+      setShowConfirmation(true);
     } catch (error) {
       console.error('Error booking appointment:', error);
       alert('Failed to book appointment. Please try again.');
@@ -344,533 +377,232 @@ const Contact = () => {
 
   const renderStep1 = () => (
     <div className="space-y-6">
-      {/* Personal Information */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Your Information</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">First Name *</label>
-            <Input 
-              value={formData.firstName}
-              onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Last Name *</label>
-            <Input 
-              value={formData.lastName}
-              onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Email *</label>
-            <Input 
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Phone Number *</label>
-            <Input 
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-              required
-            />
-          </div>
-        </div>
-        
+      <h3 className="text-lg font-semibold">Your Information</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Tell us about your condition or goals (optional)</label>
-          <Textarea 
-            value={formData.message}
-            onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
-            rows={3}
-          />
+          <label className="block text-sm font-medium mb-1">First Name *</label>
+          <Input value={formData.firstName} onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))} required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Last Name *</label>
+          <Input value={formData.lastName} onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))} required />
         </div>
       </div>
-      
-      {/* Service Selection */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Select a Service</h3>
-        <div className="grid grid-cols-1 gap-4">
-          {services.map((service) => (
-            <button
-              key={service.id}
-              type="button"
-              onClick={() => handleServiceSelect(service.id)}
-              className={`p-4 rounded-lg border-2 text-left transition-colors ${
-                formData.serviceId === service.id 
-                  ? 'border-primary bg-primary/10' 
-                  : 'border-gray-200 hover:border-primary/50'
-              }`}
-            >
-              <div className="font-medium">{service.name}</div>
-              <div className="text-sm text-gray-500 mt-1">
-                {service.description}
-              </div>
-              {service.details.rating && (
-                <div className="flex items-center mt-2 text-sm text-amber-600">
-                  {'★'.repeat(Math.floor(service.details.rating))}
-                  {'☆'.repeat(5 - Math.floor(service.details.rating))}
-                  <span className="ml-2 text-gray-600">
-                    ({service.details.rating.toFixed(1)})
-                  </span>
-                </div>
-              )}
-            </button>
-          ))}
+      <div>
+        <label className="block text-sm font-medium mb-1">Phone Number *</label>
+        <Input type="tel" value={formData.phone} onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))} required />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Email *</label>
+        <div className="flex gap-2">
+          <Input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))} required disabled={isOtpSent} />
+          <Button type="button" onClick={handleSendOtp} disabled={isOtpSent}>Send OTP</Button>
         </div>
       </div>
-      
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-medium">Select a Date</h3>
-          <div className="flex space-x-2">
-            <button 
-              onClick={() => {
-                const prevMonth = new Date(currentMonth);
-                prevMonth.setMonth(prevMonth.getMonth() - 1);
-                setCurrentMonth(prevMonth);
-              }}
-              className="p-1 rounded-full hover:bg-gray-100"
-            >
-              &lt;
-            </button>
-            <span className="font-medium">
-              {format(currentMonth, 'MMMM yyyy')}
-            </span>
-            <button 
-              onClick={() => {
-                const nextMonth = new Date(currentMonth);
-                nextMonth.setMonth(nextMonth.getMonth() + 1);
-                setCurrentMonth(nextMonth);
-              }}
-              className="p-1 rounded-full hover:bg-gray-100"
-            >
-              &gt;
-            </button>
+      {isOtpSent && !isEmailVerified && (
+        <div>
+          <label className="block text-sm font-medium mb-1">Enter OTP *</label>
+          <div className="flex gap-2">
+            <Input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" />
+            <Button type="button" onClick={handleVerifyOtp}>Verify</Button>
           </div>
         </div>
-        
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-            <div key={day} className="text-center text-sm font-medium text-gray-500">
-              {day}
-            </div>
-          ))}
-        </div>
-        
-        <div className="grid grid-cols-7 gap-1">
-          {daysInMonth().map(({date, isCurrentMonth}, index) => {
-            const isSelectable = isDateSelectable(date);
-            const isSelected = selectedDate && isSameDay(date, selectedDate);
-            const isCurrent = isToday(date);
-            
-            return (
-              <button
-                key={index}
-                onClick={() => isSelectable && handleDateSelect(date)}
-                disabled={!isSelectable}
-                className={`h-10 rounded-full flex flex-col items-center justify-center text-sm
-                  ${isSelected ? 'bg-primary text-white' : ''}
-                  ${!isCurrentMonth ? 'text-gray-400' : ''}
-                  ${!isSelectable ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100'}
-                  ${isCurrent ? 'border border-primary font-medium' : ''}
-                `}
-              >
-                <span>{format(date, 'd')}</span>
-                {isCurrent && (
-                  <span className="w-1 h-1 rounded-full bg-primary mt-0.5"></span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      
-      <div className="flex justify-end">
-        <Button 
-          type="button" 
-          disabled={!selectedDate}
-          onClick={() => setStep(2)}
-          className="mt-4"
-        >
-          Next: Select Time
+      )}
+      <div className="flex justify-end pt-4">
+        <Button type="button" onClick={handleNextStep} disabled={!isEmailVerified}>
+          Next: Select Service
         </Button>
       </div>
     </div>
   );
 
-  const renderServiceDetails = (service: ServiceDetails) => {
-    switch (service.type) {
-      case 'physiotherapy':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium">Therapist</h4>
-                <p className="text-gray-600">{service.details.name}</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Qualification</h4>
-                <p className="text-gray-600">{service.details.qualification}</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Experience</h4>
-                <p className="text-gray-600">{service.details.experience}</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Worked At</h4>
-                <p className="text-gray-600">{service.details.workedAt}</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Available Time</h4>
-                <p className="text-gray-600">{service.details.availableTime}</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Rating</h4>
-                <div className="flex items-center text-amber-500">
-                  {service.details.rating && (
-                    <>
-                      {'★'.repeat(Math.floor(service.details.rating))}
-                      {'☆'.repeat(5 - Math.floor(service.details.rating))}
-                      <span className="ml-2 text-gray-600">
-                        ({service.details.rating.toFixed(1)})
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="md:col-span-2">
-                <h4 className="font-medium">Address</h4>
-                <p className="text-gray-600">{service.details.address}</p>
-              </div>
-            </div>
-            
-            {service.details.reviews && service.details.reviews.length > 0 && (
-              <div className="mt-6">
-                <h4 className="font-medium mb-2">Recent Reviews</h4>
-                <div className="space-y-3">
-                  {service.details.reviews.map((review, index) => (
-                    <div key={index} className="border-l-2 border-primary pl-3 py-1">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{review.author}</span>
-                        <span className="text-amber-500">
-                          {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 text-sm">{review.comment}</p>
-                      <p className="text-gray-400 text-xs">{review.date}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      
-      case 'fitness':
-      case 'sports':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium">Owner</h4>
-                <p className="text-gray-600">{service.details.owner}</p>
-              </div>
-              {service.details.trainer && (
-                <div>
-                  <h4 className="font-medium">
-                    {service.type === 'fitness' ? 'Head Trainer' : 'Head Coach'}
-                  </h4>
-                  <p className="text-gray-600">{service.details.trainer}</p>
-                </div>
-              )}
-              <div>
-                <h4 className="font-medium">Service Since</h4>
-                <p className="text-gray-600">{service.details.serviceSince}</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Available Time</h4>
-                <p className="text-gray-600">{service.details.availableTime}</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Age Group</h4>
-                <p className="text-gray-600">{service.details.ageGroup}</p>
-              </div>
-              <div>
-                <h4 className="font-medium">Rating</h4>
-                <div className="flex items-center text-amber-500">
-                  {service.details.rating && (
-                    <>
-                      {'★'.repeat(Math.floor(service.details.rating))}
-                      {'☆'.repeat(5 - Math.floor(service.details.rating))}
-                      <span className="ml-2 text-gray-600">
-                        ({service.details.rating.toFixed(1)})
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="md:col-span-2">
-                <h4 className="font-medium">Address</h4>
-                <p className="text-gray-600">{service.details.address}</p>
-              </div>
-              {service.details.specialFeatures && (
-                <div className="md:col-span-2">
-                  <h4 className="font-medium">Special Features</h4>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {service.details.specialFeatures.map((feature, index) => (
-                      <span 
-                        key={index}
-                        className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded"
-                      >
-                        {feature}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {service.details.achievements && service.details.achievements.length > 0 && (
-                <div className="md:col-span-2">
-                  <h4 className="font-medium">Achievements</h4>
-                  <ul className="list-disc list-inside text-gray-600">
-                    {service.details.achievements.map((achievement, index) => (
-                      <li key={index}>{achievement}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-            
-            {service.details.reviews && service.details.reviews.length > 0 && (
-              <div className="mt-6">
-                <h4 className="font-medium mb-2">Recent Reviews</h4>
-                <div className="space-y-3">
-                  {service.details.reviews.map((review, index) => (
-                    <div key={index} className="border-l-2 border-primary pl-3 py-1">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{review.author}</span>
-                        <span className="text-amber-500">
-                          {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 text-sm">{review.comment}</p>
-                      <p className="text-gray-400 text-xs">{review.date}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      
-      default:
-        return null;
-    }
-  };
-
   const renderStep2 = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between border-b pb-4">
-        <h3 className="text-lg font-semibold">Select Date & Time</h3>
-        <button 
-          onClick={() => setStep(1)}
-          className="text-gray-500 hover:text-gray-700"
-        >
+        <h3 className="text-lg font-semibold">Select a Service</h3>
+        <button type="button" onClick={handlePrevStep} className="text-gray-500 hover:text-gray-700" aria-label="Back">
           <X className="h-5 w-5" />
         </button>
       </div>
-      
-      {selectedService && (
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h4 className="font-medium mb-2">Selected Service: {selectedService.name}</h4>
-          <div className="text-sm text-gray-600">
-            {renderServiceDetails(selectedService)}
-          </div>
-        </div>
-      )}
-      
-      <div className="space-y-2">
-        <p className="text-sm text-gray-500 mb-4">
-          {selectedDate && format(selectedDate, 'EEEE, MMMM d, yyyy')}
-        </p>
-        
-        <div className="grid grid-cols-1 gap-2">
-          {selectedService?.timeSlots.map((slot) => {
-            const isBooked = selectedDate ? isSlotBooked(selectedDate, slot.time) : false;
-            const isSelected = selectedTime === slot.time;
-            const availableSlots = slot.maxClients - (isBooked ? slot.bookedClients : 0);
-            const isAvailable = availableSlots > 0;
-            
-            return (
-              <button
-                key={slot.id}
-                onClick={() => isAvailable && handleTimeSelect(slot.time)}
-                disabled={!isAvailable}
-                className={`p-4 rounded-lg border text-left transition-colors relative
-                  ${isSelected ? 'border-primary bg-primary/10' : 'border-gray-200'}
-                  ${!isAvailable 
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                    : 'hover:border-primary hover:bg-primary/5'}
-                `}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{slot.time}</div>
-                    <div className="text-sm text-gray-500">
-                      {!isTimeSlotAvailable(slot.time, selectedDate) 
-                        ? 'Not available'
-                        : isAvailable 
-                          ? `${availableSlots} slot${availableSlots > 1 ? 's' : ''} available`
-                          : 'Fully booked'}
-                    </div>
-                  </div>
-                  {isSelected && <span className="text-primary text-lg">✓</span>}
-                </div>
-                {!isTimeSlotAvailable(slot.time, selectedDate) && (
-                  <div className="absolute inset-0 bg-white/70 rounded flex items-center justify-center">
-                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
-                      Past Time
-                    </span>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
+      <div className="grid grid-cols-1 gap-4">
+        {services.map((service) => (
+          <button
+            key={service.id}
+            type="button"
+            onClick={() => handleServiceSelect(service.id)}
+            className={`p-4 rounded-lg border-2 text-left transition-colors ${
+              selectedServiceId === service.id 
+                ? 'border-primary bg-primary/10' 
+                : 'border-gray-200 hover:border-primary/50'
+            }`}
+          >
+            <div className="font-medium">{service.name}</div>
+            <div className="text-sm text-gray-500 mt-1">{service.description}</div>
+          </button>
+        ))}
       </div>
-      
       <div className="flex justify-between pt-4">
-        <Button 
-          type="button" 
-          variant="outline"
-          onClick={() => setStep(1)}
-        >
-          Back
-        </Button>
-        <Button 
-          type="button" 
-          disabled={!selectedTime}
-          onClick={() => setStep(3)}
-        >
-          Next: Your Details
+        <Button type="button" variant="outline" onClick={handlePrevStep}>Back</Button>
+        <Button type="button" disabled={!isStep2Valid()} onClick={handleNextStep}>
+          Next: Select Date & Time
         </Button>
       </div>
     </div>
   );
 
   const renderStep3 = () => (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-4">
-        <div className="bg-blue-50 p-4 rounded-lg mb-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="font-medium">{selectedService?.name}</p>
-              <p className="text-sm text-gray-600">
-                {selectedDate && format(selectedDate, 'EEEE, MMMM d, yyyy')} at {selectedTime}
-              </p>
-              {selectedService && (
-                <div className="mt-2 text-sm">
-                  <p className="text-gray-700">
-                    <span className="font-medium">Location:</span> {selectedService.details.address}
-                  </p>
-                  {selectedService.details.trainer && (
-                    <p className="text-gray-700">
-                      <span className="font-medium">
-                        {selectedService.type === 'physiotherapy' ? 'Therapist' : 'Trainer'}:
-                      </span>{' '}
-                      {selectedService.details.trainer}
-                    </p>
-                  )}
-                </div>
-              )}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between border-b pb-4">
+        <h3 className="text-lg font-semibold">Select Date & Time</h3>
+        <button type="button" onClick={handlePrevStep} className="text-gray-500 hover:text-gray-700" aria-label="Back">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      
+      {selectedService && (
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-medium">Selected Service: {selectedService.name}</h4>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-medium">Select a Date</h3>
+            <div className="flex space-x-2 items-center">
+              <button type="button" onClick={() => setCurrentMonth(prev => addDays(prev, -30))} className="p-1 rounded-full hover:bg-gray-100" aria-label="Previous month">&lt;</button>
+              <span className="font-medium text-sm">{format(currentMonth, 'MMMM yyyy')}</span>
+              <button type="button" onClick={() => setCurrentMonth(prev => addDays(prev, 30))} className="p-1 rounded-full hover:bg-gray-100" aria-label="Next month">&gt;</button>
             </div>
-            <button 
-              type="button" 
-              onClick={() => setStep(2)}
-              className="text-sm text-blue-600 hover:text-blue-800 whitespace-nowrap ml-4"
-            >
-              Change
-            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+              <div key={day} className="text-center text-xs font-medium text-gray-500">{day}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {daysInMonth().map(({date, isCurrentMonth}, index) => {
+              const isSelectable = isDateSelectable(date);
+              const isSelected = selectedDate && isSameDay(date, selectedDate);
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => isSelectable && handleDateSelect(date)}
+                  disabled={!isSelectable}
+                  className={`h-9 w-9 rounded-full flex items-center justify-center text-sm transition-colors ${isSelected ? 'bg-primary text-white' : ''} ${!isCurrentMonth ? 'text-gray-300' : ''} ${!isSelectable ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100'}`}
+                >
+                  {format(date, 'd')}
+                </button>
+              );
+            })}
           </div>
         </div>
-        
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">First Name</label>
-            <Input 
-              placeholder="First Name" 
-              value={formData.firstName}
-              onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-              required 
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Last Name</label>
-            <Input 
-              placeholder="Last Name" 
-              value={formData.lastName}
-              onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-              required 
-            />
-          </div>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
-          <Input 
-            type="email" 
-            placeholder="Email Address" 
-            value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
-            required 
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium mb-1">Phone Number</label>
-          <Input 
-            type="tel" 
-            placeholder="Phone Number" 
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-            required 
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Tell us about your condition or goals (optional)
-          </label>
-          <Textarea 
-            placeholder="Any specific concerns or goals you'd like to discuss?" 
-            rows={4}
-            value={formData.message}
-            onChange={(e) => setFormData({...formData, message: e.target.value})}
-          />
+
+        <div className="space-y-4">
+          <h3 className="font-medium">Select a Time Slot</h3>
+          {selectedDate ? (
+            <div className="grid grid-cols-1 gap-2">
+              {selectedService?.timeSlots.map((slot) => {
+                const isBooked = isSlotBooked(selectedDate, slot.time);
+                const isAvailable = isTimeSlotAvailable(slot.time, selectedDate) && !isBooked;
+                const isSelected = selectedTime === slot.time;
+                return (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    onClick={() => isAvailable && handleTimeSelect(slot.time)}
+                    disabled={!isAvailable}
+                    className={`p-3 rounded-lg border text-left transition-colors w-full relative ${isSelected ? 'border-primary bg-primary/10' : 'border-gray-200'} ${!isAvailable ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:border-primary hover:bg-primary/5'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-sm">{slot.time}</div>
+                      <div className={`text-xs font-semibold px-2 py-1 rounded-full ${isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {isAvailable ? 'Available' : 'Booked'}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 pt-4">Please select a date to see available times.</p>
+          )}
         </div>
       </div>
       
-      <div className="flex justify-between pt-2">
-        <Button 
-          type="button" 
-          variant="outline"
-          onClick={() => setStep(2)}
-        >
-          Back
-        </Button>
-        <Button type="submit">
-          Book Appointment
+      <div className="flex justify-between pt-4">
+        <Button type="button" variant="outline" onClick={handlePrevStep}>Back</Button>
+        <Button type="button" disabled={!isStep3Valid()} onClick={handleNextStep}>Next: Confirm Booking</Button>
+      </div>
+    </div>
+  );
+
+  const renderStep4 = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between border-b pb-4">
+        <h3 className="text-lg font-semibold">Confirm Your Appointment</h3>
+        <button type="button" onClick={handlePrevStep} className="text-gray-500 hover:text-gray-700" aria-label="Back">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+        <div>
+          <p className="font-medium text-gray-500 text-sm">Your Details</p>
+          <p className="text-gray-800">{formData.firstName} {formData.lastName}</p>
+          <p className="text-gray-600 text-sm">{formData.email} | {formData.phone}</p>
+        </div>
+        <div>
+          <p className="font-medium text-gray-500 text-sm">Selected Service</p>
+          <p className="text-gray-800">{selectedService?.name}</p>
+        </div>
+        <div>
+          <p className="font-medium text-gray-500 text-sm">Date & Time</p>
+          <p className="text-gray-800">{selectedDate && format(selectedDate, 'EEEE, MMMM d, yyyy')} at {selectedTime}</p>
+        </div>
+      </div>
+      <div className="flex justify-between pt-4">
+        <Button type="button" variant="outline" onClick={handlePrevStep}>Back</Button>
+        <Button type="button" onClick={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting ? 'Booking...' : 'Book Appointment'}
         </Button>
       </div>
-    </form>
+    </div>
+  );
+
+  const renderConfirmationModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <Card className="bg-white rounded-lg shadow-xl max-w-md w-full m-4">
+            <CardHeader className="text-center bg-green-50 p-6">
+                <div className="mx-auto bg-green-100 rounded-full h-16 w-16 flex items-center justify-center">
+                    <span className="text-4xl">🎉</span>
+                </div>
+                <CardTitle className="text-2xl font-bold text-green-800 mt-4">Congratulations!</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 text-center">
+                <p className="text-gray-700 mb-4">Your appointment has been successfully booked.</p>
+                {confirmedBookingDetails && (
+                  <div className="text-left bg-gray-50 p-4 rounded-lg border">
+                      <p className="font-semibold text-gray-800">
+                          Service: <span className="font-normal text-gray-600">{confirmedBookingDetails.serviceName}</span>
+                      </p>
+                      <p className="font-semibold text-gray-800 mt-2">
+                          Date: <span className="font-normal text-gray-600">{confirmedBookingDetails.date}</span>
+                      </p>
+                      <p className="font-semibold text-gray-800 mt-2">
+                          Time: <span className="font-normal text-gray-600">{confirmedBookingDetails.time}</span>
+                      </p>
+                  </div>
+                )}
+                <Button 
+                    onClick={() => setShowConfirmation(false)} 
+                    className="mt-6 w-full bg-primary text-white"
+                >
+                    Done
+                </Button>
+            </CardContent>
+        </Card>
+    </div>
   );
 
   return (
@@ -901,14 +633,21 @@ const Contact = () => {
                 <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 3 ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'}`}>
                   3
                 </div>
+                <div className={`h-1 w-8 ${step >= 4 ? 'bg-primary' : 'bg-gray-200'}`}></div>
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 4 ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  4
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-6">
               {step === 1 && renderStep1()}
               {step === 2 && renderStep2()}
               {step === 3 && renderStep3()}
+              {step === 4 && renderStep4()}
             </CardContent>
           </Card>
+
+          {showConfirmation && renderConfirmationModal()}
 
           {/* Contact Information */}
           <div className="space-y-8">

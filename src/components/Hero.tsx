@@ -1,10 +1,34 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, HeartPulse, ShieldCheck, Clock, Users } from "lucide-react";
 import heroImage from "@/assets/hero-physiotherapy.jpg";
-import React from "react";
+import React, { useState, Suspense, lazy } from "react";
 import { motion } from "framer-motion";
 
+// Lazy load the BookingModal to prevent potential issues
+const BookingModal = lazy(() => import("./BookingModal"));
+
 const Hero = () => {
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  
+  // Error boundary for the modal
+  const [hasError, setHasError] = useState(false);
+  
+  if (hasError) {
+    return (
+      <section className="relative min-h-screen flex items-center justify-center">
+        <div className="text-center p-8 bg-white/10 backdrop-blur-sm rounded-xl">
+          <h2 className="text-2xl font-bold text-white mb-4">Something went wrong</h2>
+          <p className="text-white/80 mb-4">We're having trouble loading the booking system.</p>
+          <Button 
+            onClick={() => window.location.reload()}
+            className="bg-white/10 hover:bg-white/20"
+          >
+            Try Again
+          </Button>
+        </div>
+      </section>
+    );
+  }
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -89,10 +113,18 @@ const Hero = () => {
               variant="default" 
               size="lg" 
               className="group bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-white text-base font-semibold px-8 py-6 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-primary/20"
+              onClick={() => setIsBookingModalOpen(true)}
             >
               Book Your Consultation
               <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </Button>
+            
+            <Suspense fallback={null}>
+              <BookingModal 
+                isOpen={isBookingModalOpen} 
+                onClose={() => setIsBookingModalOpen(false)} 
+              />
+            </Suspense>
             
             <Button 
               variant="outline" 
