@@ -1,7 +1,24 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Phone, Mail, MapPin } from "lucide-react";
+import { Phone, Mail, MapPin, Menu, X } from "lucide-react";
 
 const Header = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
+
+  const handleBookAppointment = () => {
+    navigate('/contact');
+    closeMobileMenu();
+  };
   return (
     <header className="bg-background shadow-soft sticky top-0 z-50">
       {/* Top contact bar */}
@@ -29,29 +46,85 @@ const Header = () => {
       {/* Main navigation */}
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center">
+          <Link to="/" className="flex items-center" onClick={closeMobileMenu}>
             <h1 className="text-2xl font-bold text-gradient">PHYSIOBATTALIONS</h1>
-          </div>
+          </Link>
           
+          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <a href="#home" className="text-foreground hover:text-primary transition-smooth">Home</a>
-            <a href="#about" className="text-foreground hover:text-primary transition-smooth">About</a>
-            <a href="#services" className="text-foreground hover:text-primary transition-smooth">Services</a>
-            <a href="#gallery" className="text-foreground hover:text-primary transition-smooth">Gallery</a>
-            <a href="#contact" className="text-foreground hover:text-primary transition-smooth">Contact</a>
+            <Link to="/" className="text-foreground hover:text-primary transition-smooth">Home</Link>
+            <Link to="/about" className="text-foreground hover:text-primary transition-smooth">About</Link>
+            <Link to="/services" className="text-foreground hover:text-primary transition-smooth">Services</Link>
+            <Link to="/contact" className="text-foreground hover:text-primary transition-smooth">Contact</Link>
           </div>
 
-          <Button variant="hero" size="lg" className="hidden md:inline-flex">
-            Book Appointment
-          </Button>
+          <div className="hidden md:block">
+            <Button 
+              variant="hero" 
+              size="lg" 
+              onClick={handleBookAppointment}
+            >
+              Book Appointment
+            </Button>
+          </div>
 
           {/* Mobile menu button */}
-          <button className="md:hidden text-foreground">
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          <div className="md:hidden">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={toggleMobileMenu}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
+          </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-background shadow-lg rounded-lg mt-4 p-4 space-y-4">
+            <nav className="flex flex-col space-y-3">
+              <Link 
+                to="/" 
+                className="block px-4 py-2 hover:bg-gray-100 rounded-md transition-colors"
+                onClick={closeMobileMenu}
+              >
+                Home
+              </Link>
+              <Link 
+                to="/about" 
+                className="block px-4 py-2 hover:bg-gray-100 rounded-md transition-colors"
+                onClick={closeMobileMenu}
+              >
+                About
+              </Link>
+              <Link 
+                to="/services" 
+                className="block px-4 py-2 hover:bg-gray-100 rounded-md transition-colors"
+                onClick={closeMobileMenu}
+              >
+                Services
+              </Link>
+              <Link 
+                to="/contact" 
+                className="block px-4 py-2 hover:bg-gray-100 rounded-md transition-colors"
+                onClick={closeMobileMenu}
+              >
+                Contact
+              </Link>
+            </nav>
+            <div className="pt-2">
+              <Button 
+                variant="hero" 
+                className="w-full"
+                onClick={handleBookAppointment}
+              >
+                Book Appointment
+              </Button>
+            </div>
+          </div>
+        )}
       </nav>
     </header>
   );

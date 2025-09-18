@@ -1,0 +1,24 @@
+.scrollIndicator {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.scrollIndicatorInner {
+  width: 2rem;
+  height: 3rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+  display: flex;
+  justify-content: center;
+  padding: 0.25rem;
+}
+
+.scrollIndicatorDot {
+  width: 0.25rem;
+  height: 0.5rem;
+  background-color: white;
+  border-radius: 9999px;
+}

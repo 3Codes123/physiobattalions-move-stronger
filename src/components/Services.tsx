@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import BookingModal from "@/components/BookingModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { ImageCarousel } from './ui/image-carousel';
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ const services = [
 
 const Services = () => {
   const [activeTab, setActiveTab] = useState(services[0].id);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const activeService = services.find(service => service.id === activeTab) || services[0];
 
   // Generate image paths for the active service
@@ -71,7 +73,8 @@ const Services = () => {
       // Create a URL-friendly filename by replacing spaces with %20
       const serviceName = activeService.title.split(' ')[0].toLowerCase();
       const imageNumber = i + 1;
-      const imagePath = `${activeService.imagePath}${serviceName}${imageNumber}.jpg`;
+      const imageName = `${serviceName} ${imageNumber}.jpg`;
+      const imagePath = `${activeService.imagePath}${encodeURIComponent(imageName)}`;
       
       console.log(`Loading image: ${imagePath}`); // For debugging
       
@@ -80,6 +83,12 @@ const Services = () => {
         alt: `${activeService.title} ${imageNumber}`
       };
     });
+  }, [activeService]);
+
+  // Map current tab to booking service type
+  const preselectServiceType = useMemo(() => {
+    if (activeService.id === 'sports') return 'sports' as const;
+    return 'physiotherapy' as const;
   }, [activeService]);
 
   return (
@@ -109,54 +118,52 @@ const Services = () => {
             </TabsList>
           </div>
 
-          {services.map((service) => (
-            <TabsContent key={service.id} value={service.id} className="space-y-8">
-              <div className="space-y-6">
-                {/* Service Title */}
-                <div className="text-center">
-                  <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-                    {service.title}
-                  </h3>
-                  <p className="text-gray-600 max-w-3xl mx-auto">
-                    {service.description}
-                  </p>
-                </div>
+          <TabsContent value={activeService.id} className="space-y-8">
+            <div className="space-y-6">
+              {/* Service Title */}
+              <div className="text-center">
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                  {activeService.title}
+                </h3>
+                <p className="text-gray-600 max-w-3xl mx-auto">
+                  {activeService.description}
+                </p>
+              </div>
 
-                {/* Features in a row */}
-                <div className="flex flex-wrap justify-center gap-4 mb-8">
-                  {service.features.map((feature, idx) => (
-                    <div key={idx} className="flex items-center bg-gray-50 px-4 py-2 rounded-full">
-                      <div className="w-2 h-2 rounded-full bg-primary mr-2"></div>
-                      <span className="text-sm text-gray-700 whitespace-nowrap">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Full-width Image Carousel */}
-                <div className="px-4">
-                  <div className="rounded-lg overflow-hidden shadow-md">
-                    <ImageCarousel 
-                      images={serviceImages}
-                      autoPlay={true}
-                      interval={3000}
-                      showDots={true}
-                      showArrows={true}
-                      showPauseButton={true}
-                      className="h-[400px]"
-                    />
+              {/* Features in a row */}
+              <div className="flex flex-wrap justify-center gap-4 mb-8">
+                {activeService.features.map((feature, idx) => (
+                  <div key={idx} className="flex items-center bg-gray-50 px-4 py-2 rounded-full">
+                    <div className="w-2 h-2 rounded-full bg-primary mr-2"></div>
+                    <span className="text-sm text-gray-700 whitespace-nowrap">{feature}</span>
                   </div>
-                </div>
+                ))}
+              </div>
 
-                {/* Book Button */}
-                <div className="text-center pt-4">
-                  <Button className="group bg-primary hover:bg-primary/90">
-                    Book an Appointment
-                    <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                  </Button>
+              {/* Full-width Image Carousel */}
+              <div className="px-4">
+                <div className="rounded-lg overflow-hidden shadow-md">
+                  <ImageCarousel 
+                    images={serviceImages}
+                    autoPlay={true}
+                    interval={3000}
+                    showDots={true}
+                    showArrows={true}
+                    showPauseButton={true}
+                    className="h-[400px]"
+                  />
                 </div>
               </div>
-            </TabsContent>
-          ))}
+
+              {/* Book Button */}
+              <div className="text-center pt-4">
+                <Button className="group bg-primary hover:bg-primary/90" onClick={() => setBookingOpen(true)}>
+                  Book an Appointment
+                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
 
         <div className="text-center mt-16">
@@ -165,6 +172,7 @@ const Services = () => {
           </Button>
         </div>
       </div>
+      <BookingModal open={bookingOpen} onOpenChange={setBookingOpen} preselectService={preselectServiceType} />
     </section>
   );
 };

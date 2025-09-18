@@ -1,6 +1,9 @@
-import { Phone, Mail, MapPin } from "lucide-react";
+import { Link, useNavigate } from 'react-router-dom';
+import { Phone, Mail, MapPin, User } from "lucide-react";
+import { Button } from "./ui/button";
 
 const Footer = () => {
+  const navigate = useNavigate();
   return (
     <footer className="bg-foreground text-background py-16">
       <div className="container mx-auto px-4">
@@ -31,12 +34,12 @@ const Footer = () => {
           <div>
             <h4 className="text-lg font-semibold mb-6">Services</h4>
             <ul className="space-y-3 text-background/80">
-              <li><a href="#" className="hover:text-background transition-smooth">Musculoskeletal Physiotherapy</a></li>
-              <li><a href="#" className="hover:text-background transition-smooth">Orthopedic Physiotherapy</a></li>
-              <li><a href="#" className="hover:text-background transition-smooth">Neurological Physiotherapy</a></li>
-              <li><a href="#" className="hover:text-background transition-smooth">Cardiorespiratory Physiotherapy</a></li>
-              <li><a href="#" className="hover:text-background transition-smooth">Sports Physiotherapy</a></li>
-              <li><a href="#" className="hover:text-background transition-smooth">Fitness Club</a></li>
+              <li><Link to="/services#musculoskeletal" className="hover:text-background transition-smooth">Musculoskeletal Physiotherapy</Link></li>
+              <li><Link to="/services#orthopedic" className="hover:text-background transition-smooth">Orthopedic Physiotherapy</Link></li>
+              <li><Link to="/services#neurological" className="hover:text-background transition-smooth">Neurological Physiotherapy</Link></li>
+              <li><Link to="/services#cardiorespiratory" className="hover:text-background transition-smooth">Cardiorespiratory Physiotherapy</Link></li>
+              <li><Link to="/services#sports" className="hover:text-background transition-smooth">Sports Physiotherapy</Link></li>
+              <li><Link to="/services#fitness-club" className="hover:text-background transition-smooth">Fitness Club</Link></li>
             </ul>
           </div>
 
@@ -44,10 +47,10 @@ const Footer = () => {
           <div>
             <h4 className="text-lg font-semibold mb-6">Quick Links</h4>
             <ul className="space-y-3 text-background/80">
-              <li><a href="#home" className="hover:text-background transition-smooth">Home</a></li>
-              <li><a href="#about" className="hover:text-background transition-smooth">About Us</a></li>
-              <li><a href="#services" className="hover:text-background transition-smooth">Services</a></li>
-              <li><a href="#contact" className="hover:text-background transition-smooth">Contact</a></li>
+              <li><Link to="/" className="hover:text-background transition-smooth">Home</Link></li>
+              <li><Link to="/about" className="hover:text-background transition-smooth">About Us</Link></li>
+              <li><Link to="/services" className="hover:text-background transition-smooth">Services</Link></li>
+              <li><Link to="/contact" className="hover:text-background transition-smooth">Contact</Link></li>
               <li><a href="#" className="hover:text-background transition-smooth">Blog</a></li>
               <li><a href="#" className="hover:text-background transition-smooth">Testimonials</a></li>
             </ul>
@@ -63,10 +66,23 @@ const Footer = () => {
                 <p className="text-sm">9:00 AM - 7:00 PM</p>
                 <p className="text-sm">Closed on Sundays</p>
               </div>
-              <div>
-                <h5 className="font-medium text-background mb-2">Emergency Support</h5>
-                <p className="text-sm">24/7 Available</p>
-                <p className="text-sm">Call: 7721866059</p>
+              <div className="space-y-3">
+                <div>
+                  <h5 className="font-medium text-background mb-2">Emergency Support</h5>
+                  <p className="text-sm">24/7 Available</p>
+                  <p className="text-sm">Call: 7721866059</p>
+                </div>
+                <div className="pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-auto px-4 bg-transparent text-background hover:bg-background/10 border-background/30 hover:border-background/50 flex items-center gap-2"
+                    onClick={() => navigate('/employee-login')}
+                  >
+                    <User className="h-4 w-4" />
+                    Employee Login
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
