@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, isToday, isAfter, parse, addDays } from "date-fns";
+import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { servicesData, ServiceProvider } from "@/data/servicesData";
 
@@ -52,11 +53,15 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [fullPhone, setFullPhone] = useState("");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
-  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Step 2: select service + provider
   const [serviceType, setServiceType] = useState<BookingServiceType>(preselectService);
@@ -64,8 +69,18 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
   const [providerId, setProviderId] = useState<string>(providers[0]?.id ?? "");
 
   // Step 3: date & time
-  const [date, setDate] = useState<Date | undefined>(undefined);
+  const [date, setDate] = useState<Date | undefined>(() => {
+    // Set initial date to current time in IST
+    const now = new Date();
+    return new Date(now.getTime() + (5.5 * 60 * 60 * 1000)); // Convert to IST
+  });
   const [timeSlot, setTimeSlot] = useState<string | null>(null);
+  
+  // Get current time in IST
+  const getCurrentIST = () => {
+    const now = new Date();
+    return new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+  };
 
   const selectedProvider: ServiceProvider | undefined = useMemo(
     () => providers.find((p) => p.id === providerId) ?? providers[0],
@@ -73,27 +88,48 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
   );
 
   const timeSlots = useMemo(() => {
+    // Convert 24h time to 12h format
+    const to12Hour = (time24: string) => {
+      const [hours, minutes] = time24.split(':').map(Number);
+      const period = hours >= 12 ? 'pm' : 'am';
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+    };
+
+    const now = getCurrentIST();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
     // For physiotherapists: use defined timeSlots; for others, create sample slots
-    if (selectedProvider?.type === "physiotherapy") {
-      return selectedProvider.timeSlots.map((ts) => ({
+    const slots = selectedProvider?.type === "physiotherapy"
+      ? selectedProvider.timeSlots
+      : [
+          { start: "09:00", end: "12:00" },
+          { start: "13:00", end: "16:00" }, // Updated second slot to 1:00 PM - 4:00 PM
+          { start: "16:00", end: "19:00" }  // Third slot 4:00 PM - 7:00 PM
+        ];
+
+    return slots.map((ts) => {
+      const [startH, startM] = ts.start.split(':').map(Number);
+      const [endH, endM] = ts.end.split(':').map(Number);
+      const slotStartMinutes = startH * 60 + startM;
+      const slotEndMinutes = endH * 60 + endM;
+      
+      // If it's today, check if the slot has already started
+      // Show all slots for future dates, only filter for today
+  const isFutureSlot = !isToday(date || now) || 
+                     (isToday(date || now) && slotEndMinutes > currentMinutes);
+      
+      return {
         id: `${ts.start}-${ts.end}`,
-        label: `${ts.start} - ${ts.end}`,
-        available: ts.capacity > 0,
-      }));
-    }
-    const genericSlots = [
-      { start: "08:00", end: "10:00" },
-      { start: "10:00", end: "12:00" },
-      { start: "13:00", end: "15:00" },
-      { start: "17:00", end: "19:00" },
-    ];
-    return genericSlots.map((ts, i) => ({
-      id: `${ts.start}-${ts.end}`,
-      label: `${ts.start} - ${ts.end}`,
-      // Alternate availability to demonstrate UI
-      available: i % 2 === 0,
-    }));
-  }, [selectedProvider]);
+        label: `${to12Hour(ts.start)} - ${to12Hour(ts.end)}`,
+        available: isFutureSlot && (selectedProvider?.type === "physiotherapy" 
+          ? (ts as any).capacity > 0 
+          : true),
+        startTime: ts.start,
+        endTime: ts.end
+      };
+    });
+  }, [selectedProvider, date]);
 
   const canProceedStep1 = firstName && lastName && phone && email && otpVerified;
   const canProceedStep2 = serviceType && providerId;
@@ -112,7 +148,6 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
     setProviderId("");
     setDate(undefined);
     setTimeSlot(null);
-    setUploadFiles([]);
   };
 
   const handleClose = (value: boolean) => {
@@ -122,25 +157,106 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
     onOpenChange(value);
   };
 
+  const handleStepChange = (newStep: number) => {
+    if (step === 1 && newStep > 1) {
+      if (!validateStep1()) return;
+    }
+    setStep(newStep as any);
+  };
+
+  const isValidEmail = (email: string) => {
+    // Simple email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Handle OTP resend cooldown
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const isValidPhoneNumber = (phone: string) => {
+    // Validate 10-digit Indian phone number
+    const phoneRegex = /^[6-9]\d{9}$/;
+    return phoneRegex.test(phone);
+  };
+
+  const validateStep1 = () => {
+    const errors: Record<string, string> = {};
+    
+    if (!firstName.trim()) errors.firstName = 'Please enter your name';
+    if (!lastName.trim()) errors.lastName = 'Please enter your surname';
+    
+    if (!phone.trim()) {
+      errors.phone = 'Please enter your phone number';
+    } else if (!isValidPhoneNumber(phone)) {
+      errors.phone = 'Please enter a valid 10-digit phone number';
+    } else {
+      // Update fullPhone with country code when valid
+      setFullPhone(`+91${phone}`);
+    }
+    
+    if (!email) {
+      errors.email = 'Please enter your email address';
+    } else if (!isValidEmail(email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    if (!otpVerified) {
+      errors.otp = 'Please verify your email with OTP';
+    }
+    
+    // Only set errors if there are any
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return false;
+    }
+    return true;
+  };
+
   const handleSendOtp = () => {
-    if (!email) return;
+    setEmailError(null);
+    
+    if (!email) {
+      setEmailError('Please enter your email address');
+      return;
+    }
+    
+    if (!isValidEmail(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    
+    // Reset OTP state when sending a new one
+    setOtp('');
+    setOtpVerified(false);
     setOtpSent(true);
-    // In real app, call backend to send OTP
+    setResendCooldown(60); // Set 60 seconds cooldown
+    
+    // In real app, call backend to send OTP to the provided email
+    console.log(`Sending OTP to: ${email}`);
     // Here we simulate OTP "123456"
   };
 
   const handleVerifyOtp = () => {
     if (otp === "123456") {
       setOtpVerified(true);
+      // Clear any existing OTP error when verified
+      setFormErrors(prev => ({
+        ...prev,
+        otp: ''
+      }));
     } else {
       setOtpVerified(false);
-      alert("Invalid OTP. Try 123456 for demo.");
+      setFormErrors(prev => ({
+        ...prev,
+        otp: 'Invalid OTP. Try 123456 for demo.'
+      }));
     }
-  };
-
-  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setUploadFiles(files);
   };
 
   return (
@@ -168,32 +284,134 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="firstName">Name</Label>
-                <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" />
+                <Input 
+                  id="firstName" 
+                  value={firstName} 
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    if (formErrors.firstName) {
+                      setFormErrors(prev => ({ ...prev, firstName: '' }));
+                    }
+                  }} 
+                  placeholder="First name" 
+                  className={formErrors.firstName ? 'border-red-500' : ''}
+                />
+                {formErrors.firstName && <p className="text-sm text-red-500 mt-1">{formErrors.firstName}</p>}
               </div>
               <div>
                 <Label htmlFor="lastName">Surname</Label>
-                <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" />
+                <Input 
+                  id="lastName" 
+                  value={lastName} 
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    if (formErrors.lastName) {
+                      setFormErrors(prev => ({ ...prev, lastName: '' }));
+                    }
+                  }} 
+                  placeholder="Last name" 
+                  className={formErrors.lastName ? 'border-red-500' : ''}
+                />
+                {formErrors.lastName && <p className="text-sm text-red-500 mt-1">{formErrors.lastName}</p>}
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 9876543210" />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <div className="flex items-center">
+                      <span className="text-gray-500">+91</span>
+                      <span className="h-5 w-px bg-gray-300 mx-2"></span>
+                    </div>
+                  </div>
+                  <Input 
+                    id="phone" 
+                    type="tel" 
+                    value={phone}
+                    onChange={(e) => {
+                      // Allow only numbers and limit to 10 digits
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setPhone(value);
+                      if (formErrors.phone) {
+                        setFormErrors(prev => ({ ...prev, phone: '' }));
+                      }
+                    }}
+                    onBlur={() => {
+                      // Update fullPhone when input loses focus
+                      if (isValidPhoneNumber(phone)) {
+                        setFullPhone(`+91${phone}`);
+                      }
+                    }}
+                    placeholder="9876543210"
+                    className={`pl-16 ${formErrors.phone ? 'border-red-500' : ''}`}
+                    maxLength={10}
+                  />
+                </div>
+                {formErrors.phone && (
+                  <p className="text-sm text-red-500 mt-1">{formErrors.phone}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span className="h-5 w-px bg-gray-300 mx-2"></span>
+                  </div>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={email} 
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                      if (formErrors.email) {
+                        setFormErrors(prev => ({ ...prev, email: '' }));
+                      }
+                    }} 
+                    placeholder="your@email.com" 
+                    className={`pl-16 ${emailError || formErrors.email ? 'border-red-500' : ''}`}
+                  />
+                </div>
+                <div className="flex justify-between">
+                  {(emailError || formErrors.email) && (
+                    <p className="text-sm text-red-500 mt-1">{emailError || formErrors.email}</p>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>OTP Verification</Label>
+            <div className={`space-y-2 transition-all duration-200 ${!otpSent ? 'opacity-70' : ''}`}>
+              <div className="flex items-center justify-between">
+                <Label>OTP Verification</Label>
+                {!otpSent && (
+                  <span className="text-sm text-muted-foreground">
+                    Enter email and click 'Send OTP'
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
-                <Button type="button" variant="secondary" onClick={handleSendOtp} disabled={!email || otpSent}>
-                  {otpSent ? "OTP Sent" : "Send OTP"}
-                </Button>
-                <InputOTP maxLength={6} value={otp} onChange={(v) => setOtp(v)}>
+                {!otpVerified && (
+                  <Button 
+                    type="button" 
+                    variant={email && !emailError ? "default" : "secondary"} 
+                    onClick={handleSendOtp} 
+                    disabled={!email || otpSent || !!emailError || resendCooldown > 0}
+                    className={`transition-colors ${email && !emailError && resendCooldown === 0 ? 'bg-primary hover:bg-primary/90' : ''}`}
+                  >
+                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : otpSent ? 'Resend OTP' : 'Send OTP'}
+                  </Button>
+                )}
+                <InputOTP 
+                  maxLength={6} 
+                  value={otp} 
+                  onChange={(v) => setOtp(v)}
+                  disabled={otpVerified}
+                >
                   <InputOTPGroup>
                     <InputOTPSlot index={0} />
                     <InputOTPSlot index={1} />
@@ -203,19 +421,38 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
                     <InputOTPSlot index={5} />
                   </InputOTPGroup>
                 </InputOTP>
-                <Button type="button" onClick={handleVerifyOtp} disabled={!otpSent}>
-                  Verify
-                </Button>
-                {otpVerified && <span className="text-green-600 text-sm">Verified</span>}
+                {!otpVerified ? (
+                  <div className="flex flex-col">
+                    <Button 
+                      type="button" 
+                      onClick={handleVerifyOtp} 
+                      disabled={!otpSent || otp.length < 6}
+                      className={formErrors.otp ? 'border-red-500' : ''}
+                    >
+                      Verify
+                    </Button>
+                    {formErrors.otp && <p className="text-sm text-red-500 mt-1">{formErrors.otp}</p>}
+                  </div>
+                ) : (
+                  <div className="flex items-center text-green-600 ml-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Verified
+                  </div>
+                )}
+                {otpSent && !otpVerified && resendCooldown === 0 && (
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleSendOtp}
+                    className="text-xs"
+                  >
+                    Resend OTP
+                  </Button>
+                )}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="uploads">Upload photos (optional)</Label>
-              <Input id="uploads" type="file" accept="image/*" multiple onChange={handleFiles} />
-              {uploadFiles.length > 0 && (
-                <div className="text-xs text-muted-foreground">{uploadFiles.length} file(s) selected</div>
-              )}
             </div>
           </div>
         )}
@@ -311,38 +548,59 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
 
         {/* Step 3: Date & Time */}
         {step === 3 && (
-          <div className="space-y-4">
-            <div>
-              <Label>Select Date</Label>
-              <div className="mt-2">
-                <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label>Select Date</Label>
+                <div className="mt-2">
+                  <Calendar 
+                  mode="single" 
+                  selected={date} 
+                  onSelect={(selectedDate) => {
+                    if (selectedDate) {
+                      setDate(selectedDate);
+                    }
+                  }} 
+                  initialFocus 
+                  disabled={(date) => {
+                    // Disable past dates
+                    const today = getCurrentIST();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    const compareDate = new Date(date);
+                    compareDate.setHours(0, 0, 0, 0);
+                    
+                    return compareDate < today;
+                  }}
+                />
+                </div>
+                {date && <div className="text-sm text-muted-foreground mt-2">Selected: {format(date, "PPP")}</div>}
               </div>
-              {date && <div className="text-sm text-muted-foreground mt-1">Selected: {format(date, "PPP")}</div>}
-            </div>
 
-            <div className="space-y-2">
-              <Label>Select Time</Label>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 bg-green-500 rounded-sm" /> Available</span>
-                <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 bg-red-500 rounded-sm" /> Booked</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-                {timeSlots.map((slot) => {
-                  const isSelected = timeSlot === slot.id;
-                  const cls = slot.available
-                    ? `border-green-500 text-green-700 hover:bg-green-50 ${isSelected ? "bg-green-100" : ""}`
-                    : `border-red-500 text-red-700 bg-red-50 cursor-not-allowed`;
-                  return (
-                    <button
-                      key={slot.id}
-                      className={`border rounded-md px-3 py-2 text-sm text-left ${cls}`}
-                      disabled={!slot.available}
-                      onClick={() => setTimeSlot(slot.id)}
-                    >
-                      {slot.label}
-                    </button>
-                  );
-                })}
+              <div>
+                <Label>Select Time</Label>
+                <div className="flex items-center gap-3 text-xs mb-2">
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 bg-green-500 rounded-sm" /> Available</span>
+                  <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 bg-red-500 rounded-sm" /> Booked</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2">
+                  {timeSlots.map((slot) => {
+                    const isSelected = timeSlot === slot.id;
+                    const cls = slot.available
+                      ? `border-green-500 text-green-700 hover:bg-green-50 ${isSelected ? "bg-green-100" : ""}`
+                      : `border-red-500 text-red-700 bg-red-50 cursor-not-allowed`;
+                    return (
+                      <button
+                        key={slot.id}
+                        className={`border rounded-md px-3 py-2 text-sm text-left ${cls}`}
+                        disabled={!slot.available}
+                        onClick={() => setTimeSlot(slot.id)}
+                      >
+                        {slot.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -350,16 +608,63 @@ export default function BookingModal({ open, onOpenChange, preselectService = "p
 
         <DialogFooter>
           <div className="flex items-center justify-between w-full">
-            <Button variant="secondary" onClick={() => (step === 1 ? handleClose(false) : setStep((s) => (s - 1) as any))}>
+            <Button 
+              variant="secondary" 
+              onClick={() => {
+                if (step === 1) {
+                  handleClose(false);
+                } else {
+                  setStep((s) => (s - 1) as 1 | 2 | 3);
+                }
+              }}
+            >
               {step === 1 ? "Cancel" : "Back"}
             </Button>
             {step < 3 && (
-              <Button onClick={() => setStep((s) => (s + 1) as any)} disabled={(step === 1 && !canProceedStep1) || (step === 2 && !canProceedStep2)}>
+              <Button 
+              onClick={() => {
+                if (step === 1 && !validateStep1()) return;
+                setStep((s) => (s + 1) as 1 | 2 | 3);
+              }}
+              disabled={step === 2 && !canProceedStep2}
+            >
                 Continue
               </Button>
             )}
             {step === 3 && (
-              <Button onClick={() => { alert("Booked! (demo)"); handleClose(false); }} disabled={!canProceedStep3}>Confirm Booking</Button>
+              <>
+                <Button 
+                  onClick={() => { 
+                    setShowSuccessModal(true);
+                  }} 
+                  disabled={!canProceedStep3}
+                >
+                  Confirm Booking
+                </Button>
+                
+                <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <div className="flex flex-col items-center text-center p-6">
+                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Booking Confirmed!</h3>
+                      <p className="text-gray-600 mb-6">Your appointment has been successfully scheduled.</p>
+                      <Button 
+                        onClick={() => {
+                          setShowSuccessModal(false);
+                          handleClose(false);
+                        }}
+                        className="w-full"
+                      >
+                        Done
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
           </div>
         </DialogFooter>

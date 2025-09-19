@@ -73,16 +73,6 @@ export default function ServicesPage() {
       imagePath: '/img/fwdsports/',
       imageCount: 4,
       serviceType: 'sports' as const
-    },
-    {
-      id: 'fitness-club',
-      title: "Elite Fitness Club",
-      description: "Premium fitness training and wellness center with state-of-the-art facilities.",
-      features: ["Personal training", "Group classes", "Cardio zone", "Weight training"],
-      color: "text-primary",
-      imagePath: '/img/fitness-club/',
-      imageCount: 5,
-      serviceType: 'fitness' as const
     }
   ];
 
@@ -90,13 +80,45 @@ export default function ServicesPage() {
 
   // Generate image paths for the active service
   const serviceImages = Array.from({ length: activeService.imageCount }, (_, i) => {
-    const serviceName = activeService.title.split(' ')[0].toLowerCase();
     const imageNumber = i + 1;
-    const imageName = `${serviceName} ${imageNumber}.jpg`;
-    const imagePath = `${activeService.imagePath}${encodeURIComponent(imageName)}`;
+    // Get the service directory name (e.g., 'fwdmusculoskeletal' from '/img/fwdmusculoskeletal/')
+    const serviceDir = activeService.imagePath.split('/').filter(Boolean).pop() || '';
+    
+    // Handle different service directory naming patterns
+    let imageName = '';
+    
+    switch(serviceDir) {
+      case 'fwdcommunityphysio':
+        imageName = `communityphysio ${imageNumber}.jpg`;
+        break;
+      case 'fwdcardio':
+        imageName = `Cardio ${imageNumber}.jpg`;
+        break;
+      case 'fwdhome':
+        imageName = `Home ${imageNumber}.jpg`;
+        break;
+      case 'fwdmusculoskeletal':
+        imageName = `musculoskeletal ${imageNumber}.jpg`;
+        break;
+      case 'fwdneuro':
+        imageName = `neuro ${imageNumber}.jpg`;
+        break;
+      case 'fwdsports':
+        imageName = `Sports ${imageNumber}.jpg`;
+        break;
+      case 'fwdfitness':
+        imageName = `fitness ${imageNumber}.jpg`;
+        break;
+      default:
+        // Fallback for any other directories
+        const serviceName = serviceDir.replace('fwd', '');
+        imageName = `${serviceName} ${imageNumber}.jpg`;
+    }
+    
+    const imagePath = `${activeService.imagePath}${imageName}`;
     
     return {
-      src: imagePath,
+      src: imagePath.replace(/\s+/g, '%20'),
       alt: `${activeService.title} ${imageNumber}`
     };
   });

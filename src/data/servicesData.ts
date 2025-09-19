@@ -77,7 +77,7 @@ export const servicesData: ServiceProvider[] = [
     timeSlots: [
       { start: '09:00', end: '12:00', capacity: 5 },
       { start: '13:00', end: '16:00', capacity: 5 },
-      { start: '17:00', end: '21:00', capacity: 5 },
+      { start: '16:00', end: '19:00', capacity: 5 },
     ],
     address: '123 Health St, Viman Nagar, Pune',
     reviews: [

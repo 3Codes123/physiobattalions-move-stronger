@@ -18,6 +18,7 @@ interface Employee {
   address: string;
   phone: string;
   email: string;
+  photo?: string; // Base64 string of the photo
 }
 
 interface Booking {
@@ -51,8 +52,11 @@ export default function EmployeeDashboard() {
     service: 'Physiotherapy', 
     address: '',
     phone: '',
-    email: ''
+    email: '',
+    photo: ''
   });
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -147,13 +151,51 @@ export default function EmployeeDashboard() {
       service: 'Physiotherapy', 
       address: '',
       phone: '',
-      email: ''
+      email: '',
+      photo: ''
     });
+    setPhotoPreview(null);
     setSelectedEmployee(null);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Clear any previous errors
+    setPhotoError(null);
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please upload an image file (JPEG, PNG, etc.)');
+      return;
+    }
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size should be less than 2MB');
+      return;
+    }
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setPhotoPreview(base64String);
+      setEmployeeForm(prev => ({ ...prev, photo: base64String }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate photo
+    if (!employeeForm.photo) {
+      setPhotoError('A photo is required');
+      return;
+    }
+    
     if (selectedEmployee) {
       // Update existing employee
       setEmployees(employees.map(emp => 
@@ -176,11 +218,13 @@ export default function EmployeeDashboard() {
     setEmployeeForm({
       name: employee.name,
       surname: employee.surname,
-      service: employee.service,
+      service: employee.service as 'Physiotherapy' | 'Fitness' | 'Sports',
       address: employee.address,
       phone: employee.phone,
-      email: employee.email
+      email: employee.email,
+      photo: employee.photo || ''
     });
+    setPhotoPreview(employee.photo || null);
     setIsEmployeeModalOpen(true);
   };
 
@@ -271,7 +315,7 @@ export default function EmployeeDashboard() {
             ) : (
               <div className="grid grid-cols-1 gap-6">
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                   {[
                     { title: 'Total Bookings', value: bookings.length, color: 'bg-blue-500' },
                     {
@@ -288,6 +332,11 @@ export default function EmployeeDashboard() {
                       title: 'Completed',
                       value: bookings.filter((b) => b.status === 'Completed').length,
                       color: 'bg-purple-500',
+                    },
+                    {
+                      title: 'Cancelled',
+                      value: bookings.filter((b) => b.status === 'Cancelled').length,
+                      color: 'bg-red-500',
                     },
                   ].map((stat, index) => (
                     <Card key={index} className="overflow-hidden">
@@ -381,6 +430,7 @@ export default function EmployeeDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Photo</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Service</TableHead>
                       <TableHead>Contact</TableHead>
@@ -392,6 +442,33 @@ export default function EmployeeDashboard() {
                     {employees.length > 0 ? (
                       employees.map((employee) => (
                         <TableRow key={employee.id}>
+                          <TableCell>
+                            <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                              {employee.photo ? (
+                                <img 
+                                  src={employee.photo} 
+                                  alt={`${employee.name} ${employee.surname}`} 
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    // Fallback to emoji if image fails to load
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const fallback = document.createElement('div');
+                                    fallback.className = 'text-gray-400 text-xl';
+                                    fallback.textContent = 
+                                      employee.service === 'Physiotherapy' ? '👨‍⚕️' : 
+                                      employee.service === 'Fitness' ? '💪' : '⚽';
+                                    target.parentNode?.insertBefore(fallback, target.nextSibling);
+                                  }}
+                                />
+                              ) : (
+                                <div className="text-gray-400 text-xl">
+                                  {employee.service === 'Physiotherapy' ? '👨‍⚕️' : 
+                                   employee.service === 'Fitness' ? '💪' : '⚽'}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell className="font-medium">
                             {employee.name} {employee.surname}
                           </TableCell>
@@ -547,6 +624,16 @@ export default function EmployeeDashboard() {
                   </Button>
                 </div>
               )}
+              
+              <DialogFooter>
+                <Button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)}
+                  className="mt-4"
+                >
+                  OK
+                </Button>
+              </DialogFooter>
             </div>
           )}
         </DialogContent>
@@ -614,6 +701,69 @@ export default function EmployeeDashboard() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="photo">
+                {employeeForm.service === 'Physiotherapy' 
+                  ? 'Physiotherapist Photo' 
+                  : employeeForm.service === 'Fitness' 
+                    ? 'Fitness Club Photo' 
+                    : 'Sports Club Photo'}
+              </Label>
+              <div className="mt-1 flex items-center">
+                <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
+                  {photoPreview ? (
+                    <img 
+                      src={photoPreview} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-gray-400 text-2xl">
+                      {employeeForm.service === 'Physiotherapy' ? '👨‍⚕️' : 
+                       employeeForm.service === 'Fitness' ? '💪' : '⚽'}
+                    </div>
+                  )}
+                </div>
+                <div className="ml-4">
+                  <label
+                    htmlFor="photo-upload"
+                    className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  >
+                    {photoPreview ? 'Change' : 'Upload'}
+                  </label>
+                  <input
+                    id="photo-upload"
+                    name="photo-upload"
+                    type="file"
+                    className="sr-only"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                  />
+                  {photoPreview && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhotoPreview(null);
+                        setEmployeeForm(prev => ({ ...prev, photo: '' }));
+                      }}
+                      className="ml-2 text-sm text-red-600 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className={`mt-1 text-xs ${photoError ? 'text-red-600' : 'text-gray-500'}`}>
+                {photoError || (
+                  employeeForm.service === 'Physiotherapy' 
+                    ? 'Upload a professional photo of the physiotherapist (required)' 
+                    : employeeForm.service === 'Fitness' 
+                      ? 'Upload the Fitness Club logo or photo (required)'
+                      : 'Upload the Sports Club logo or photo (required)'
+                )}
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="address">Address</Label>
               <Input
@@ -624,10 +774,17 @@ export default function EmployeeDashboard() {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEmployeeModalOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => {
+                setIsEmployeeModalOpen(false);
+                setPhotoError(null);
+              }}>
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button 
+                type="submit"
+                disabled={!employeeForm.photo}
+                className={!employeeForm.photo ? 'opacity-70 cursor-not-allowed' : ''}
+              >
                 {selectedEmployee ? 'Update' : 'Add'} Employee
               </Button>
             </DialogFooter>
