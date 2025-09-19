@@ -3,8 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, LogOut, Calendar, Clock, User, Phone, Mail, FileText, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Download, LogOut, Calendar, Clock, User, Phone, Mail, FileText, X, Plus, Edit, Trash2, Users } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+interface Employee {
+  id: string;
+  name: string;
+  surname: string;
+  service: 'Physiotherapy' | 'Fitness' | 'Sports';
+  address: string;
+  phone: string;
+  email: string;
+}
 
 interface Booking {
   id: string;
@@ -22,9 +36,23 @@ interface Booking {
 
 export default function EmployeeDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('bookings');
+  const [employeeForm, setEmployeeForm] = useState<Omit<Employee, 'id'>>({ 
+    name: '', 
+    surname: '', 
+    service: 'Physiotherapy', 
+    address: '',
+    phone: '',
+    email: ''
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,7 +64,7 @@ export default function EmployeeDashboard() {
     }
 
     // Simulate loading bookings
-    const loadBookings = () => {
+    const loadData = () => {
       // In a real app, you would fetch this from your backend
       const mockBookings: Booking[] = [
         {
@@ -78,16 +106,87 @@ export default function EmployeeDashboard() {
         }
       ];
       
+      const mockEmployees: Employee[] = [
+        {
+          id: 'e1',
+          name: 'Sarah',
+          surname: 'Williams',
+          service: 'Physiotherapy',
+          address: '123 Main St, Pune',
+          phone: '9876543210',
+          email: 'sarah.w@example.com'
+        },
+        {
+          id: 'e2',
+          name: 'Mike',
+          surname: 'Brown',
+          service: 'Fitness',
+          address: '456 Oak Ave, Pune',
+          phone: '8765432109',
+          email: 'mike.b@example.com'
+        }
+      ];
+      
       setBookings(mockBookings);
+      setEmployees(mockEmployees);
       setIsLoading(false);
     };
 
-    loadBookings();
+    loadData();
   }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem('isEmployeeLoggedIn');
     navigate('/'); // Redirect to home page
+  };
+
+  const resetEmployeeForm = () => {
+    setEmployeeForm({ 
+      name: '', 
+      surname: '', 
+      service: 'Physiotherapy', 
+      address: '',
+      phone: '',
+      email: ''
+    });
+    setSelectedEmployee(null);
+  };
+
+  const handleEmployeeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedEmployee) {
+      // Update existing employee
+      setEmployees(employees.map(emp => 
+        emp.id === selectedEmployee.id ? { ...employeeForm, id: selectedEmployee.id } : emp
+      ));
+    } else {
+      // Add new employee
+      const newEmployee: Employee = {
+        ...employeeForm,
+        id: `e${Date.now()}`
+      };
+      setEmployees([...employees, newEmployee]);
+    }
+    setIsEmployeeModalOpen(false);
+    resetEmployeeForm();
+  };
+
+  const handleEditEmployee = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setEmployeeForm({
+      name: employee.name,
+      surname: employee.surname,
+      service: employee.service,
+      address: employee.address,
+      phone: employee.phone,
+      email: employee.email
+    });
+    setIsEmployeeModalOpen(true);
+  };
+
+  const handleDeleteEmployee = (id: string) => {
+    setEmployees(employees.filter(emp => emp.id !== id));
+    setIsDeleteModalOpen(false);
   };
 
   const downloadAttachment = (url: string) => {
@@ -126,253 +225,454 @@ export default function EmployeeDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600 mt-1">Manage and view all bookings</p>
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button variant="outline" onClick={handleLogout} className="w-full sm:w-auto">
-              <LogOut className="h-4 w-4 mr-2" />
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Employee Dashboard</h1>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setActiveTab('employees');
+                setIsEmployeeModalOpen(true);
+                resetEmployeeForm();
+              }}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Employee
+            </Button>
+            <Button variant="outline" onClick={() => setIsLogoutModalOpen(true)} className="gap-2">
+              <LogOut className="h-4 w-4" />
               Logout
             </Button>
           </div>
         </div>
+      </header>
 
-        <div className="grid grid-cols-1 gap-6">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[
-              { title: 'Total Bookings', value: bookings.length, color: 'bg-blue-500' },
-              { 
-                title: 'Pending', 
-                value: bookings.filter(b => b.status === 'Pending').length, 
-                color: 'bg-yellow-500' 
-              },
-              { 
-                title: 'Confirmed', 
-                value: bookings.filter(b => b.status === 'Confirmed').length, 
-                color: 'bg-green-500' 
-              },
-              { 
-                title: 'Completed', 
-                value: bookings.filter(b => b.status === 'Completed').length, 
-                color: 'bg-purple-500' 
-              },
-            ].map((stat, index) => (
-              <Card key={index} className="overflow-hidden">
-                <div className={`h-2 ${stat.color}`}></div>
-                <CardContent className="p-4">
-                  <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                  <p className="text-2xl font-bold">{stat.value}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-md mb-6">
+            <TabsTrigger value="bookings" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Bookings
+            </TabsTrigger>
+            <TabsTrigger value="employees" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Employees
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Bookings Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Bookings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {bookings.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Service</TableHead>
-                        <TableHead>Date & Time</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {bookings.map((booking) => (
-                        <TableRow 
-                          key={booking.id} 
-                          className="cursor-pointer hover:bg-gray-50"
-                          onClick={() => openBookingDetails(booking)}
-                        >
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                <User className="h-4 w-4 text-blue-600" />
-                              </div>
-                              <div>
-                                <div>{`${booking.name} ${booking.surname}`}</div>
-                                <div className="text-xs text-gray-500">{booking.email}</div>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm font-medium">{booking.service}</div>
-                            <div className="text-xs text-gray-500">{`${booking.date} at ${booking.time}`}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span>{booking.date}</span>
-                              <Clock className="h-4 w-4 text-gray-400 ml-2" />
-                              <span>{booking.time}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeClass(booking.status)}`}>
-                              {booking.status}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openBookingDetails(booking);
-                              }}
-                            >
-                              View Details
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <p className="text-lg">No bookings found</p>
-                  <p className="text-sm mt-1">When bookings are made, they'll appear here</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Booking Details Modal */}
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <div className="flex justify-between items-center">
-                <DialogTitle>Booking Details</DialogTitle>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => setIsModalOpen(false)}
-                  className="h-8 w-8"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+          <TabsContent value="bookings">
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
               </div>
-            </DialogHeader>
-            {selectedBooking && (
-              <div className="space-y-6 py-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-medium text-gray-500">Client Information</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-                      <div className="flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                          <User className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{`${selectedBooking.name} ${selectedBooking.surname}`}</p>
-                          <div className="flex items-center text-sm text-gray-500 gap-1">
-                            <Mail className="h-3.5 w-3.5" />
-                            <span>{selectedBooking.email}</span>
-                          </div>
-                          <div className="flex items-center text-sm text-gray-500 gap-1">
-                            <Phone className="h-3.5 w-3.5" />
-                            <span>{selectedBooking.phone}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-medium text-gray-500">Appointment Details</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-gray-500">Service</p>
-                          <p className="font-medium">{selectedBooking.service}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500">Status</p>
-                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadgeClass(selectedBooking.status)}`}>
-                            {selectedBooking.status}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-gray-500">Date</p>
-                          <p className="font-medium">{selectedBooking.date}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500">Time</p>
-                          <p className="font-medium">{selectedBooking.time}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6">
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {[
+                    { title: 'Total Bookings', value: bookings.length, color: 'bg-blue-500' },
+                    {
+                      title: 'Pending',
+                      value: bookings.filter((b) => b.status === 'Pending').length,
+                      color: 'bg-yellow-500',
+                    },
+                    {
+                      title: 'Confirmed',
+                      value: bookings.filter((b) => b.status === 'Confirmed').length,
+                      color: 'bg-green-500',
+                    },
+                    {
+                      title: 'Completed',
+                      value: bookings.filter((b) => b.status === 'Completed').length,
+                      color: 'bg-purple-500',
+                    },
+                  ].map((stat, index) => (
+                    <Card key={index} className="overflow-hidden">
+                      <div className={`h-2 ${stat.color}`}></div>
+                      <CardContent className="p-4">
+                        <p className="text-sm font-medium text-gray-500">{stat.title}</p>
+                        <p className="text-2xl font-bold">{stat.value}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
 
-                {selectedBooking.message && (
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-medium text-gray-500">Client Message</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="whitespace-pre-line">{selectedBooking.message}</p>
-                    </div>
-                  </div>
-                )}
-
-                {selectedBooking.attachment && (
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-medium text-gray-500">Attachment</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <span className="text-sm">{selectedBooking.attachment}</span>
+                {/* Bookings Table */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Bookings</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {bookings.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Service</TableHead>
+                              <TableHead>Date & Time</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {bookings.map((booking) => (
+                              <TableRow key={booking.id}>
+                                <TableCell className="font-medium">
+                                  {booking.name} {booking.surname}
+                                </TableCell>
+                                <TableCell>{booking.service}</TableCell>
+                                <TableCell>
+                                  {booking.date} at {booking.time}
+                                </TableCell>
+                                <TableCell>
+                                  <span
+                                    className={`px-2 py-1 text-xs rounded-full ${
+                                      booking.status === 'Confirmed'
+                                        ? 'bg-green-100 text-green-800'
+                                        : booking.status === 'Pending'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : booking.status === 'Completed'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-red-100 text-red-800'
+                                    }`}
+                                  >
+                                    {booking.status}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedBooking(booking);
+                                      setIsModalOpen(true);
+                                    }}
+                                  >
+                                    View Details
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => downloadAttachment(selectedBooking.attachment!)}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button 
-                    variant="outline"
-                    onClick={() => setIsModalOpen(false)}
-                  >
-                    Close
-                  </Button>
-                  <Button 
-                    variant="default"
-                    onClick={() => {
-                      // Handle action (e.g., confirm, reschedule, etc.)
-                      console.log('Action taken on booking:', selectedBooking.id);
-                    }}
-                  >
-                    Mark as {selectedBooking.status === 'Pending' ? 'Confirmed' : 'Completed'}
-                  </Button>
-                </div>
+                    ) : (
+                      <div className="text-center py-12 text-gray-500">
+                        <p className="text-lg">No bookings found</p>
+                        <p className="text-sm mt-1">When bookings are made, they'll appear here</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
-      </div>
+          </TabsContent>
+
+          <TabsContent value="employees">
+            <Card>
+              <CardHeader>
+                <CardTitle>Employee Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Service</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Address</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {employees.length > 0 ? (
+                      employees.map((employee) => (
+                        <TableRow key={employee.id}>
+                          <TableCell className="font-medium">
+                            {employee.name} {employee.surname}
+                          </TableCell>
+                          <TableCell>{employee.service}</TableCell>
+                          <TableCell>
+                            <div className="text-sm text-gray-500">{employee.phone}</div>
+                            <div className="text-xs text-gray-400">{employee.email}</div>
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-500">{employee.address}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditEmployee(employee)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-500 hover:text-red-600"
+                                onClick={() => {
+                                  setSelectedEmployee(employee);
+                                  setIsDeleteModalOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                          No employees found. Add your first employee to get started.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      {/* Booking Details Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          <DialogHeader>
+            <DialogTitle>Appointment Details</DialogTitle>
+          </DialogHeader>
+          {selectedBooking && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="bg-gray-100 p-3 rounded-full">
+                  <User className="h-6 w-6 text-gray-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium">{selectedBooking.name} {selectedBooking.surname}</h3>
+                  <p className="text-sm text-gray-500">{selectedBooking.email}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3">
+                  <Phone className="h-5 w-5 text-gray-500" />
+                  <span>{selectedBooking.phone}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-gray-500" />
+                  <span>{selectedBooking.date}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-gray-500" />
+                  <span>{selectedBooking.time}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-gray-500" />
+                  <span>{selectedBooking.service}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={selectedBooking.status}
+                  onValueChange={(value) => {
+                    setBookings(bookings.map(booking => 
+                      booking.id === selectedBooking.id 
+                        ? { ...booking, status: value as any }
+                        : booking
+                    ));
+                    setSelectedBooking({
+                      ...selectedBooking,
+                      status: value as any
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pending">
+                      <span className="flex items-center">
+                        <span className="h-2 w-2 rounded-full bg-yellow-500 mr-2"></span>
+                        Pending
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="Confirmed">
+                      <span className="flex items-center">
+                        <span className="h-2 w-2 rounded-full bg-blue-500 mr-2"></span>
+                        Confirmed
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="Completed">
+                      <span className="flex items-center">
+                        <span className="h-2 w-2 rounded-full bg-green-500 mr-2"></span>
+                        Completed
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="Cancelled">
+                      <span className="flex items-center">
+                        <span className="h-2 w-2 rounded-full bg-red-500 mr-2"></span>
+                        Cancelled
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedBooking.message && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium mb-1">Message</h4>
+                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                    {selectedBooking.message}
+                  </p>
+                </div>
+              )}
+
+              {selectedBooking.attachment && (
+                <div className="mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 w-full"
+                    onClick={() => downloadAttachment(selectedBooking.attachment!)}
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Attachment
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Employee Form Modal */}
+      <Dialog open={isEmployeeModalOpen} onOpenChange={setIsEmployeeModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEmployeeSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">First Name</Label>
+                <Input
+                  id="name"
+                  value={employeeForm.name}
+                  onChange={(e) => setEmployeeForm({...employeeForm, name: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="surname">Last Name</Label>
+                <Input
+                  id="surname"
+                  value={employeeForm.surname}
+                  onChange={(e) => setEmployeeForm({...employeeForm, surname: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={employeeForm.email}
+                onChange={(e) => setEmployeeForm({...employeeForm, email: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                value={employeeForm.phone}
+                onChange={(e) => setEmployeeForm({...employeeForm, phone: e.target.value})}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="service">Service</Label>
+              <Select
+                value={employeeForm.service}
+                onValueChange={(value) => setEmployeeForm({...employeeForm, service: value as any})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select service" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Physiotherapy">Physiotherapy</SelectItem>
+                  <SelectItem value="Fitness">Fitness</SelectItem>
+                  <SelectItem value="Sports">Sports</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                value={employeeForm.address}
+                onChange={(e) => setEmployeeForm({...employeeForm, address: e.target.value})}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEmployeeModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {selectedEmployee ? 'Update' : 'Add'} Employee
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Are you sure?</DialogTitle>
+          </DialogHeader>
+          <p>This will permanently delete the employee record. This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => selectedEmployee && handleDeleteEmployee(selectedEmployee.id)}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Logout Confirmation Modal */}
+      <Dialog open={isLogoutModalOpen} onOpenChange={setIsLogoutModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Logout</DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to logout?</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsLogoutModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={handleLogout}>
+              Logout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { ArrowRight, HeartPulse, ShieldCheck, Clock } from "lucide-react";
-import { Link } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import BookingModal from "@/components/BookingModal";
 
 export default function Home() {
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const stats = [
     { value: "500+", label: "Happy Patients", icon: <HeartPulse className="w-6 h-6" /> },
     { value: "6", label: "Specialties", icon: <ShieldCheck className="w-6 h-6" /> },
@@ -49,11 +50,13 @@ export default function Home() {
                   </p>
                   
                   <div className="flex flex-col sm:flex-row gap-4">
-                    <Button asChild size="lg" className="text-lg bg-primary hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 px-8 h-14 text-base">
-                      <Link to="/book-appointment" className="flex items-center gap-2">
-                        Book an Appointment
-                        <ArrowRight className="h-5 w-5" />
-                      </Link>
+                    <Button 
+                      size="lg" 
+                      className="text-lg bg-primary hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 px-8 h-14 text-base flex items-center gap-2"
+                      onClick={() => setIsBookingModalOpen(true)}
+                    >
+                      Book an Appointment
+                      <ArrowRight className="h-5 w-5" />
                     </Button>
                   </div>
                 </div>
@@ -85,6 +88,10 @@ export default function Home() {
         </section>
       </main>
       <Footer />
+      <BookingModal 
+        open={isBookingModalOpen} 
+        onOpenChange={setIsBookingModalOpen} 
+      />
     </div>
   );
 }

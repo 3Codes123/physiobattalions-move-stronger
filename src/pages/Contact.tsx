@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Mail, Phone, MessageSquare, User } from 'lucide-react';
+import { Mail, Phone, MessageSquare, User, Calendar } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Link } from 'react-router-dom';
+import BookingModal from "@/components/BookingModal";
 
 export default function Contact() {
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -154,18 +155,30 @@ export default function Contact() {
                   </Button>
                 </div>
                 
-                <p className="text-sm text-gray-500 text-center">
-                  Need to book an appointment?{' '}
-                  <Link to="/book-appointment" className="text-primary hover:underline font-medium">
-                    Click here
-                  </Link>
-                </p>
+                <div className="flex flex-col items-center space-y-2">
+                  <p className="text-sm text-gray-500">
+                    Need to book an appointment?
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex items-center gap-2"
+                    onClick={() => setIsBookingModalOpen(true)}
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Book an Appointment
+                  </Button>
+                </div>
               </form>
             </div>
           </div>
         </div>
       </main>
       <Footer />
+      <BookingModal 
+        open={isBookingModalOpen} 
+        onOpenChange={setIsBookingModalOpen}
+      />
     </div>
   );
 }

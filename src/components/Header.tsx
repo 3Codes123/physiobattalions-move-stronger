@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Phone, Mail, MapPin, Menu, X } from "lucide-react";
+import BookingModal from "./BookingModal";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
@@ -16,7 +17,7 @@ const Header = () => {
   };
 
   const handleBookAppointment = () => {
-    navigate('/contact');
+    setIsBookingModalOpen(true);
     closeMobileMenu();
   };
   return (
@@ -126,6 +127,10 @@ const Header = () => {
           </div>
         )}
       </nav>
+      <BookingModal 
+        open={isBookingModalOpen} 
+        onOpenChange={setIsBookingModalOpen} 
+      />
     </header>
   );
 };

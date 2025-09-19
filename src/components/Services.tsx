@@ -98,6 +98,11 @@ const Services = () => {
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
             Our Services
           </h2>
+          <BookingModal 
+            open={bookingOpen} 
+            onOpenChange={setBookingOpen}
+            preselectService={preselectServiceType}
+          />
           <p className="text-lg text-gray-600 max-w-3xl mx-auto">
             Comprehensive physiotherapy services tailored to your needs
           </p>
