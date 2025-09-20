@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Phone, Mail, MapPin, Menu, X } from "lucide-react";
 import BookingModal from "./BookingModal";
+import logo from "@/assets/Physiobattalions Logo.png";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -47,7 +48,14 @@ const Header = () => {
       {/* Main navigation */}
       <nav className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center" onClick={closeMobileMenu}>
+          <Link to="/" className="flex items-center space-x-2 group" onClick={closeMobileMenu}>
+            <div className="flex items-center justify-center w-16 h-16 -my-2 overflow-hidden">
+              <img 
+                src={logo} 
+                alt="Physiobattalions Logo" 
+                className="h-full w-full object-contain max-h-full max-w-full" 
+              />
+            </div>
             <h1 className="text-2xl font-bold text-gradient">PHYSIOBATTALIONS</h1>
           </Link>
           

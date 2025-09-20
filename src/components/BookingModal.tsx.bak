@@ -6,22 +6,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { DialogTrigger } from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { format, addDays, addHours, isAfter, isBefore, isToday, parseISO } from "date-fns";
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { format, isToday, isAfter, parse, addDays } from "date-fns";
+import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { servicesData } from "@/data/servicesData";
-import type { ServiceProvider } from "@/types/serviceProvider";
+import { servicesData, ServiceProvider, Physiotherapist, FitnessClub, SportsAcademy } from "@/data/servicesData";
 
-export type BookingServiceType = "physiotherapy" | "fitness" | "sports" | "";
+export type BookingServiceType = "physiotherapy" | "fitness" | "sports";
 
 interface BookingModalProps {
   open: boolean;
@@ -29,16 +25,58 @@ interface BookingModalProps {
   preselectService?: BookingServiceType;
 }
 
-const serviceOptions: { value: BookingServiceType; label: string }[] = [
-  { value: "physiotherapy", label: "Physiotherapy" },
-  { value: "fitness", label: "Fitness" },
-  { value: "sports", label: "Sports" },
+const serviceOptions: { value: BookingServiceType; label: string; description: string }[] = [
+  {
+    value: "physiotherapy",
+    label: "Physiotherapy",
+    description: "Professional therapy sessions for rehabilitation and pain management",
+  },
+  {
+    value: "fitness",
+    label: "Elite Fitness Club",
+    description: "Premium fitness training and wellness center",
+  },
+  {
+    value: "sports",
+    label: "Champion Sports Academy",
+    description: "Professional sports training for all levels",
+  },
 ];
 
-const getProvidersByType = (type: BookingServiceType) =>
-  servicesData.filter((s) => s.type === type);
+const getProvidersByType = (type: BookingServiceType) => {
+  return servicesData.filter((s) => s.type === type);
+};
 
-export default function BookingModal({ open, onOpenChange, preselectService = "" }: BookingModalProps) {
+const getProviderDisplayName = (provider: ServiceProvider) => {
+  if ('qualification' in provider) {
+    return `${provider.name} (${provider.qualification})`;
+  } else {
+    return `${provider.name} (Owner: ${provider.owner})`;
+  }
+};
+
+const getProviderPhotos = (provider: ServiceProvider): string[] => {
+  const basePath = '/img/services/';
+  const defaultPhotos = ['/img/placeholder.jpg'];
+  
+  try {
+    if ('photos' in provider && Array.isArray(provider.photos)) {
+      return provider.photos.length > 0 ? provider.photos : defaultPhotos;
+    }
+    
+    // Fallback to imageUrl if photos array doesn't exist
+    if (provider.imageUrl) {
+      return [provider.imageUrl];
+    }
+    
+    return defaultPhotos;
+  } catch (error) {
+    console.error('Error getting provider photos:', error);
+    return defaultPhotos;
+  }
+};
+
+export default function BookingModal({ open, onOpenChange, preselectService = "physiotherapy" }: BookingModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // Step 1: user info + OTP
@@ -54,39 +92,22 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
   const [resendCooldown, setResendCooldown] = useState(0);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-
-  // Photo modal state and handlers
-  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
-  const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
-
-  const openPhotoModal = (photo: string) => {
-    setCurrentPhoto(photo);
-    setIsPhotoModalOpen(true);
-  };
-
-  const closePhotoModal = () => {
-    setIsPhotoModalOpen(false);
-    // Small delay to allow the modal to close before clearing the photo
-    setTimeout(() => setCurrentPhoto(null), 200);
-  };
 
   // Step 2: select service + provider
-  const [serviceType, setServiceType] = useState<BookingServiceType>(preselectService || "");
-  const handleServiceTypeChange = (val: string) => {
-    setServiceType(val as BookingServiceType);
-    setProviderId(""); // Reset provider when service type changes
-    // Clear any previous service type errors
-    setFormErrors(prev => ({
-      ...prev,
-      serviceType: '',
-      provider: ''
-    }));
-  };
-  const providers = useMemo(() => 
-    serviceType ? getProvidersByType(serviceType) : []
-  , [serviceType]);
-  const [providerId, setProviderId] = useState<string>("");
+  const [selectedService, setSelectedService] = useState<BookingServiceType>(preselectService);
+  const providers = useMemo(() => getProvidersByType(selectedService), [selectedService]);
+  const [selectedProvider, setSelectedProvider] = useState<ServiceProvider | null>(null);
+  const [providerPhotos, setProviderPhotos] = useState<string[]>([]);
+  const [providerId, setProviderId] = useState<string>(providers[0]?.id ?? "");
+
+  // Update provider photos when selected provider changes
+  useEffect(() => {
+    if (selectedProvider) {
+      setProviderPhotos(getProviderPhotos(selectedProvider));
+    } else {
+      setProviderPhotos([]);
+    }
+  }, [selectedProvider]);
 
   // Step 3: date & time
   const [date, setDate] = useState<Date | undefined>(() => {
@@ -101,11 +122,6 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
     const now = new Date();
     return new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
   };
-
-  const selectedProvider: ServiceProvider | undefined = useMemo(
-    () => providers.find((p) => p.id === providerId),
-    [providers, providerId]
-  );
 
   const timeSlots = useMemo(() => {
     // Convert 24h time to 12h format
@@ -152,7 +168,7 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
   }, [selectedProvider, date]);
 
   const canProceedStep1 = firstName && lastName && phone && email && otpVerified;
-  const canProceedStep2 = serviceType && providerId;
+  const canProceedStep2 = selectedService && selectedProvider;
   const canProceedStep3 = date && timeSlot;
 
   const resetState = () => {
@@ -164,8 +180,8 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
     setOtp("");
     setOtpSent(false);
     setOtpVerified(false);
-    setServiceType(preselectService);
-    setProviderId("");
+    setSelectedService(preselectService);
+    setSelectedProvider(null);
     setDate(undefined);
     setTimeSlot(null);
   };
@@ -238,26 +254,6 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
     return true;
   };
 
-  const validateStep2 = () => {
-    const errors: Record<string, string> = {};
-    
-    if (!serviceType) {
-      errors.serviceType = 'Please select a service type';
-      setFormErrors(errors);
-      return false;
-    }
-    
-    if (!providerId) {
-      errors.provider = 'Please select a provider';
-      setFormErrors(errors);
-      return false;
-    }
-    
-    // Clear any previous errors if validation passes
-    setFormErrors({});
-    return true;
-  };
-
   const handleSendOtp = () => {
     setEmailError(null);
     
@@ -299,41 +295,17 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
     }
   };
 
-  const handleNext = () => {
-    if (step === 1) {
-      if (!validateStep1()) return;
-      setStep(2);
-    } else if (step === 2) {
-      if (!validateStep2()) {
-        if (!serviceType) {
-          setFormErrors(prev => ({ ...prev, serviceType: 'Please select a service type' }));
-          return;
-        }
-        if (!providerId) {
-          setFormErrors(prev => ({ ...prev, provider: 'Please select a provider' }));
-          return;
-        }
-        return;
-      }
-      setStep(3);
-    } else if (step === 3) {
-      if (!date || !timeSlot) return;
-      setShowSuccessModal(true);
-    }
-  };
-
   return (
-    <div>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Book an Appointment</DialogTitle>
-            <DialogDescription>
-              Step {step} of 3
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Book an Appointment</DialogTitle>
+          <DialogDescription>
+            Step {step} of 3
+          </DialogDescription>
+        </DialogHeader>
 
-          {/* Stepper indicator */}
+        {/* Stepper indicator */}
         <div className="flex items-center justify-between text-sm mb-4">
           <div className={`flex-1 text-center ${step >= 1 ? "text-primary" : "text-muted-foreground"}`}>User Info</div>
           <div className="w-8 h-[2px] bg-muted mx-2" />
@@ -526,102 +498,147 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
           <div className="space-y-4">
             <div>
               <Label>Choose a Service</Label>
-              <Select value={serviceType} onValueChange={handleServiceTypeChange}>
+              <Select value={selectedService} onValueChange={(val: BookingServiceType) => setSelectedService(val)}>
                 <SelectTrigger className="w-full mt-1">
                   <SelectValue placeholder="Select a service" />
                 </SelectTrigger>
                 <SelectContent>
                   {serviceOptions.map((s) => (
                     <SelectItem key={s.value} value={s.value}>
-                      {s.label}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{s.label}</span>
+                        <span className="text-xs text-muted-foreground">{s.description}</span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {formErrors.serviceType && <p className="text-sm text-red-500 mt-1">{formErrors.serviceType}</p>}
             </div>
 
             <div>
               <Label>Select Provider</Label>
               <Select 
-                value={providerId} 
-                onValueChange={(v) => setProviderId(v)}
-                disabled={!serviceType}
+                value={selectedProvider?.id} 
+                onValueChange={(value) => {
+                  const provider = providers.find((p) => p.id === value) || null;
+                  setSelectedProvider(provider);
+                }}
               >
-                <SelectTrigger className="w-full mt-1">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a provider" />
                 </SelectTrigger>
                 <SelectContent>
-                  {providers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.type === "physiotherapy" && (
-                        <div className="flex flex-col">
-                          <span className="font-medium">{p.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {(p as any).qualification} • {(p as any).experience} yrs exp
-                          </span>
-                        </div>
-                      )}
-                      {p.type === "fitness" && (
-                        <div className="flex flex-col">
-                          <span className="font-medium">{p.name}</span>
-                          <span className="text-xs text-muted-foreground">Owner: {(p as any).owner}</span>
-                        </div>
-                      )}
-                      {p.type === "sports" && (
-                        <div className="flex flex-col">
-                          <span className="font-medium">{p.name}</span>
-                          <span className="text-xs text-muted-foreground">Owner: {(p as any).owner}</span>
-                        </div>
-                      )}
+                  {providers.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{provider.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {'qualification' in provider 
+                            ? provider.qualification 
+                            : `Owner: ${(provider as any).owner}`}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {formErrors.provider && <p className="text-sm text-red-500 mt-1">{formErrors.provider}</p>}
-            </div>
-
-            {selectedProvider && (
-              <div className="rounded-md border p-3 text-sm space-y-3">
-                <div className="font-medium">Provider Details</div>
-                
-                {/* Photo Gallery */}
-                <div>
-                  <div className="text-sm font-medium mb-2">Photos</div>
-                  {selectedProvider.photos && selectedProvider.photos.length > 0 ? (
-                    <div className="flex gap-2 overflow-x-auto pb-2">
-                      {selectedProvider.photos.map((photo, index) => (
-                        <div 
-                          key={index} 
-                          className="relative flex-shrink-0 w-20 h-20 rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border border-border"
-                          onClick={() => openPhotoModal(photo)}
-                        >
-                          <img 
-                            src={photo} 
-                            alt={`Provider ${index + 1}`}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = '/placeholder.svg';
-                            }}
-                          />
-                        </div>
-                      ))}
+              
+              {selectedProvider && (
+                <div className="mt-4 space-y-4">
+                  {/* Provider Photos */}
+                  {providerPhotos.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Provider Photos</Label>
+                      <div className="flex gap-4 overflow-x-auto pb-2">
+                        {providerPhotos.map((photo, index) => (
+                          <div key={index} className="flex-shrink-0 w-32 h-32 rounded-lg overflow-hidden border">
+                            <img 
+                              src={photo} 
+                              alt={`Provider ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = '/img/placeholder.jpg';
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">No photos available</div>
                   )}
-                </div>
-                {selectedProvider.type === "physiotherapy" && (
-                  <div>
-                    <div>{(selectedProvider as any).qualification} • {(selectedProvider as any).experience} yrs exp</div>
-                    <div>Worked at: {(selectedProvider as any).workedAt.join(", ")}</div>
-                    <div>Available: {(selectedProvider as any).availability.hours}</div>
-                    <div>Address: {(selectedProvider as any).address}</div>
+                  
+                  {/* Provider Details */}
+                  <div className="space-y-2">
+                    <Label>Provider Details</Label>
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      {'qualification' in selectedProvider ? (
+                        <div className="space-y-1">
+                          <p className="font-medium">{selectedProvider.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedProvider.qualification}
+                          </p>
+                          <p className="text-sm">
+                            Experience: {selectedProvider.experience} years
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="font-medium">{selectedProvider.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Owner: {(selectedProvider as any).owner}
+                          </p>
+                          {'serviceSince' in selectedProvider && (
+                            <p className="text-sm">
+                              Since: {(selectedProvider as any).serviceSince}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-                {selectedProvider.type === "fitness" && (
-                  <div>
+                </div>
+              )}
+            </div>
+            
+            {/* Date and Time Selection */}
+            <div className="space-y-4">
+              <div>
+                <Label>Select Date</Label>
+                <div className="mt-1">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    className="rounded-md border"
+                    disabled={(date) => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      return date < today;
+                    }}
+                  />
+                </div>
+              </div>
+
+              {date && (
+                <div>
+                  <Label>Select Time Slot</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {timeSlots.map((slot) => (
+                      <Button
+                        key={`${slot.start}-${slot.end}`}
+                        variant={timeSlot === `${slot.start}-${slot.end}` ? 'default' : 'outline'}
+                        onClick={() => setTimeSlot(`${slot.start}-${slot.end}`)}
+                        disabled={!slot.available}
+                        className="justify-start"
+                      >
+                        {slot.label}
+                        {!slot.available && <span className="ml-2 text-xs">(Full)</span>}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
                     <div>Owner: {(selectedProvider as any).owner}</div>
                     <div>Available: {(selectedProvider as any).availableTime}</div>
                     <div>Age Group: {(selectedProvider as any).ageGroup}</div>
@@ -717,9 +734,12 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
             </Button>
             {step < 3 && (
               <Button 
-                onClick={handleNext}
-                disabled={step === 2 && !canProceedStep2}
-              >
+              onClick={() => {
+                if (step === 1 && !validateStep1()) return;
+                setStep((s) => (s + 1) as 1 | 2 | 3);
+              }}
+              disabled={step === 2 && !canProceedStep2}
+            >
                 Continue
               </Button>
             )}
@@ -761,35 +781,6 @@ export default function BookingModal({ open, onOpenChange, preselectService = ""
           </div>
         </DialogFooter>
       </DialogContent>
-      </Dialog>
-
-      {/* Photo Modal */}
-      <Dialog open={isPhotoModalOpen} onOpenChange={closePhotoModal}>
-        <DialogContent 
-          className="max-w-4xl p-0 overflow-hidden [&>button]:hidden"
-          onInteractOutside={closePhotoModal}
-        >
-          <DialogHeader className="px-6 pt-6 pb-0 relative">
-            <DialogTitle>Photo Preview</DialogTitle>
-            <DialogClose 
-              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-              onClick={closePhotoModal}
-            >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </DialogClose>
-          </DialogHeader>
-          <div className="relative w-full p-6 pt-4">
-            {currentPhoto && (
-              <img 
-                src={currentPhoto} 
-                alt="Provider photo" 
-                className="w-full h-auto max-h-[70vh] object-contain rounded-md"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </Dialog>
   );
 }

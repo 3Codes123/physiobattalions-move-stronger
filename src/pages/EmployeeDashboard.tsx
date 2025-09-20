@@ -6,20 +6,46 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, LogOut, Calendar, Clock, User, Phone, Mail, FileText, X, Plus, Edit, Trash2, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-interface Employee {
+interface BaseEmployee {
   id: string;
   name: string;
   surname: string;
-  service: 'Physiotherapy' | 'Fitness' | 'Sports';
   address: string;
   phone: string;
   email: string;
-  photo?: string; // Base64 string of the photo
+  photos: string[];
+  serviceSince: string;
 }
+
+interface PhysiotherapistEmployee extends BaseEmployee {
+  service: 'Physiotherapy';
+  qualification: string;
+  yearsOfExperience: string;
+  workedAt: string;
+}
+
+interface FitnessEmployee extends BaseEmployee {
+  service: 'Fitness';
+  fitnessClubName: string;
+  trainerName: string;
+  achievements: string;
+  mandatoryAgeGroup: string;
+}
+
+interface SportsEmployee extends BaseEmployee {
+  service: 'Sports';
+  trainerCoachName: string;
+  achievements: string;
+  mandatoryAgeGroup: string;
+  specialFeatures: string;
+}
+
+type Employee = PhysiotherapistEmployee | FitnessEmployee | SportsEmployee;
 
 interface Booking {
   id: string;
@@ -46,17 +72,72 @@ export default function EmployeeDashboard() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('bookings');
-  const [employeeForm, setEmployeeForm] = useState<Omit<Employee, 'id'>>({ 
-    name: '', 
-    surname: '', 
-    service: 'Physiotherapy', 
+  // Create a type for the form state that includes all possible fields
+  type EmployeeFormState = {
+    name: string;
+    surname: string;
+    service: '' | 'Physiotherapy' | 'Fitness' | 'Sports';
+    address: string;
+    phone: string;
+    email: string;
+    photos: string[];
+    serviceSince: string;
+    // Physiotherapy specific
+    qualification: string;
+    yearsOfExperience: string;
+    workedAt: string;
+    // Fitness specific
+    fitnessClubName: string;
+    trainerName: string;
+    achievements: string;
+    mandatoryAgeGroup: string;
+    // Sports specific
+    trainerCoachName: string;
+    specialFeatures: string;
+  };
+
+  const [employeeForm, setEmployeeForm] = useState<EmployeeFormState>({
+    name: '',
+    surname: '',
+    service: '',
     address: '',
     phone: '',
     email: '',
-    photo: ''
+    photos: [],
+    serviceSince: new Date().getFullYear().toString(),
+    // Physiotherapy specific
+    qualification: '',
+    yearsOfExperience: '',
+    workedAt: '',
+    // Fitness specific
+    fitnessClubName: '',
+    trainerName: '',
+    achievements: '',
+    mandatoryAgeGroup: '',
+    // Sports specific
+    trainerCoachName: '',
+    specialFeatures: ''
   });
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
+  const [isFormSubmitted, setIsFormSubmitted] = useState(false);
+  
+  const getInputClassName = (fieldName: string) => {
+    const baseClasses = 'w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-1';
+    const errorClasses = 'border-red-500 focus:ring-red-500 ring-1 ring-red-500';
+    const normalClasses = 'border-gray-300 focus:ring-primary-500';
+    
+    return `${baseClasses} ${(isFormSubmitted && formErrors[fieldName]) ? errorClasses : normalClasses}`;
+  };
+
+  const getSelectClassName = (fieldName: string) => {
+    const baseClasses = 'w-full';
+    const errorClasses = 'border-red-500 ring-1 ring-red-500';
+    
+    return `${baseClasses} ${(isFormSubmitted && formErrors[fieldName]) ? errorClasses : ''}`;
+  };
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -118,7 +199,12 @@ export default function EmployeeDashboard() {
           service: 'Physiotherapy',
           address: '123 Main St, Pune',
           phone: '9876543210',
-          email: 'sarah.w@example.com'
+          email: 'sarah.w@example.com',
+          photos: [],
+          serviceSince: '2015',
+          qualification: 'MPT (Orthopedics)',
+          yearsOfExperience: '9',
+          workedAt: 'Apollo Hospital, Max Healthcare'
         },
         {
           id: 'e2',
@@ -127,7 +213,28 @@ export default function EmployeeDashboard() {
           service: 'Fitness',
           address: '456 Oak Ave, Pune',
           phone: '8765432109',
-          email: 'mike.b@example.com'
+          email: 'mike.b@example.com',
+          photos: [],
+          serviceSince: '2018',
+          fitnessClubName: 'Elite Fitness',
+          trainerName: 'John Trainer',
+          achievements: 'Certified Personal Trainer, 5+ years experience',
+          mandatoryAgeGroup: '18-60'
+        },
+        {
+          id: 'e3',
+          name: 'Alex',
+          surname: 'Johnson',
+          service: 'Sports',
+          address: '789 Sports Complex, Pune',
+          phone: '7654321098',
+          email: 'alex.j@example.com',
+          photos: [],
+          serviceSince: '2020',
+          trainerCoachName: 'Alex Johnson',
+          achievements: 'State Level Badminton Coach',
+          mandatoryAgeGroup: '10-25',
+          specialFeatures: 'Badminton, Table Tennis, Swimming'
         }
       ];
       
@@ -145,86 +252,253 @@ export default function EmployeeDashboard() {
   };
 
   const resetEmployeeForm = () => {
-    setEmployeeForm({ 
-      name: '', 
-      surname: '', 
-      service: 'Physiotherapy', 
+    setEmployeeForm({
+      name: '',
+      surname: '',
+      service: '',
       address: '',
       phone: '',
       email: '',
-      photo: ''
+      photos: [],
+      serviceSince: '',
+      // Reset all service-specific fields
+      qualification: '',
+      yearsOfExperience: '0',
+      workedAt: '',
+      fitnessClubName: '',
+      trainerName: '',
+      achievements: '',
+      mandatoryAgeGroup: '',
+      trainerCoachName: '',
+      specialFeatures: ''
     });
-    setPhotoPreview(null);
+    setPhotoPreviews([]);
     setSelectedEmployee(null);
+    setPhotoError('');
+    setFormErrors({});
+    setIsFormSubmitted(false);
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     // Clear any previous errors
     setPhotoError(null);
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setPhotoError('Please upload an image file (JPEG, PNG, etc.)');
+    // Check total photos won't exceed limit
+    const totalPhotos = employeeForm.photos.length + files.length;
+    if (totalPhotos > 2) {
+      setPhotoError('Maximum of 2 photos allowed');
       return;
     }
 
-    // Check file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Image size should be less than 2MB');
-      return;
+    // Process each file
+    const newPhotos: string[] = [];
+    const newPreviews: string[] = [];
+    let filesProcessed = 0;
+
+    files.forEach(file => {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setPhotoError('Please upload only image files (JPEG, PNG, etc.)');
+        return;
+      }
+
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        setPhotoError('Each image should be less than 2MB');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        newPhotos.push(base64String);
+        newPreviews.push(base64String);
+        filesProcessed++;
+
+        // When all files are processed
+        if (filesProcessed === files.length) {
+          setEmployeeForm(prev => ({
+            ...prev,
+            photos: [...prev.photos, ...newPhotos].slice(0, 2) // Ensure max 2 photos
+          }));
+          setPhotoPreviews(prev => [...prev, ...newPreviews].slice(0, 2));
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, boolean> = {};
+    let isValid = true;
+
+    // Basic info validation
+    if (!employeeForm.name.trim()) { 
+      errors.name = true; 
+      isValid = false; 
+    }
+    if (!employeeForm.surname.trim()) { 
+      errors.surname = true; 
+      isValid = false; 
+    }
+    if (!employeeForm.phone.trim()) { 
+      errors.phone = true; 
+      isValid = false; 
+    }
+    if (!employeeForm.email.trim() || !/\S+@\S+\.\S+/.test(employeeForm.email)) { 
+      errors.email = true; 
+      isValid = false; 
+    }
+    if (!employeeForm.address.trim()) { 
+      errors.address = true; 
+      isValid = false; 
+    }
+    if (!employeeForm.service) { 
+      errors.service = true; 
+      isValid = false; 
+    }
+    if (!employeeForm.serviceSince) { 
+      errors.serviceSince = true; 
+      isValid = false; 
     }
 
-    // Create preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      setPhotoPreview(base64String);
-      setEmployeeForm(prev => ({ ...prev, photo: base64String }));
-    };
-    reader.readAsDataURL(file);
+    // Service specific validation
+    if (employeeForm.service === 'Physiotherapy') {
+      if (!employeeForm.qualification.trim()) { errors.qualification = true; isValid = false; }
+      if (!employeeForm.yearsOfExperience.trim()) { errors.yearsOfExperience = true; isValid = false; }
+      if (!employeeForm.workedAt.trim()) { errors.workedAt = true; isValid = false; }
+    } else if (employeeForm.service === 'Fitness') {
+      if (!employeeForm.fitnessClubName.trim()) { errors.fitnessClubName = true; isValid = false; }
+      if (!employeeForm.trainerName.trim()) { errors.trainerName = true; isValid = false; }
+      if (!employeeForm.mandatoryAgeGroup.trim()) { errors.mandatoryAgeGroup = true; isValid = false; }
+    } else if (employeeForm.service === 'Sports') {
+      if (!employeeForm.trainerCoachName.trim()) { errors.trainerCoachName = true; isValid = false; }
+      if (!employeeForm.mandatoryAgeGroup.trim()) { errors.mandatoryAgeGroup = true; isValid = false; }
+      if (!employeeForm.specialFeatures.trim()) { errors.specialFeatures = true; isValid = false; }
+    }
+
+    // Photo validation
+    if (employeeForm.photos.length === 0) {
+      setPhotoError('At least one photo is required');
+      isValid = false;
+    }
+
+    setFormErrors(errors);
+    return isValid;
   };
 
   const handleEmployeeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setIsFormSubmitted(true);
     
-    // Validate photo
-    if (!employeeForm.photo) {
-      setPhotoError('A photo is required');
+    if (!validateForm()) {
+      // Show all validation errors
       return;
     }
+
+    // Create employee data based on service type
+    let employeeData: Employee;
+    const employeeId = selectedEmployee?.id || `e${Date.now()}`;
     
+    const baseEmployee = {
+      id: employeeId,
+      name: employeeForm.name,
+      surname: employeeForm.surname,
+      address: employeeForm.address,
+      phone: employeeForm.phone,
+      email: employeeForm.email,
+      photos: employeeForm.photos,
+      serviceSince: employeeForm.serviceSince,
+    };
+    
+    if (employeeForm.service === 'Physiotherapy') {
+      employeeData = {
+        ...baseEmployee,
+        service: 'Physiotherapy',
+        qualification: employeeForm.qualification || '',
+        yearsOfExperience: employeeForm.yearsOfExperience || '0',
+        workedAt: employeeForm.workedAt || ''
+      } as const;
+    } else if (employeeForm.service === 'Fitness') {
+      employeeData = {
+        ...baseEmployee,
+        service: 'Fitness',
+        fitnessClubName: employeeForm.fitnessClubName || '',
+        trainerName: employeeForm.trainerName || '',
+        achievements: employeeForm.achievements || '',
+        mandatoryAgeGroup: employeeForm.mandatoryAgeGroup || ''
+      } as const;
+    } else {
+      // Sports
+      employeeData = {
+        ...baseEmployee,
+        service: 'Sports',
+        trainerCoachName: employeeForm.trainerCoachName || '',
+        achievements: employeeForm.achievements || '',
+        mandatoryAgeGroup: employeeForm.mandatoryAgeGroup || '',
+        specialFeatures: employeeForm.specialFeatures || ''
+      } as const;
+    }
+
+    // Update or add employee
     if (selectedEmployee) {
-      // Update existing employee
       setEmployees(employees.map(emp => 
-        emp.id === selectedEmployee.id ? { ...employeeForm, id: selectedEmployee.id } : emp
+        emp.id === selectedEmployee.id ? employeeData : emp
       ));
     } else {
-      // Add new employee
-      const newEmployee: Employee = {
-        ...employeeForm,
-        id: `e${Date.now()}`
-      };
-      setEmployees([...employees, newEmployee]);
+      setEmployees([...employees, employeeData]);
     }
+
     setIsEmployeeModalOpen(false);
     resetEmployeeForm();
   };
 
   const handleEditEmployee = (employee: Employee) => {
     setSelectedEmployee(employee);
-    setEmployeeForm({
+    // Create a form state that includes all possible fields with defaults
+    const formState: EmployeeFormState = {
       name: employee.name,
       surname: employee.surname,
-      service: employee.service as 'Physiotherapy' | 'Fitness' | 'Sports',
+      service: employee.service,
       address: employee.address,
       phone: employee.phone,
       email: employee.email,
-      photo: employee.photo || ''
-    });
-    setPhotoPreview(employee.photo || null);
+      photos: [...employee.photos],
+      serviceSince: employee.serviceSince || new Date().getFullYear().toString(),
+      // Set default values for all fields
+      qualification: '',
+      yearsOfExperience: '0',
+      workedAt: '',
+      fitnessClubName: '',
+      trainerName: '',
+      achievements: '',
+      mandatoryAgeGroup: '',
+      trainerCoachName: '',
+      specialFeatures: ''
+    };
+
+    // Set service-specific fields based on the employee type
+    if (employee.service === 'Physiotherapy' && 'qualification' in employee) {
+      formState.qualification = employee.qualification;
+      formState.yearsOfExperience = employee.yearsOfExperience.toString();
+      formState.workedAt = employee.workedAt;
+    } else if (employee.service === 'Fitness' && 'fitnessClubName' in employee) {
+      formState.fitnessClubName = employee.fitnessClubName;
+      formState.trainerName = employee.trainerName;
+      formState.achievements = employee.achievements;
+      formState.mandatoryAgeGroup = employee.mandatoryAgeGroup;
+    } else if (employee.service === 'Sports' && 'trainerCoachName' in employee) {
+      formState.trainerCoachName = employee.trainerCoachName;
+      formState.achievements = employee.achievements;
+      formState.mandatoryAgeGroup = employee.mandatoryAgeGroup;
+      formState.specialFeatures = employee.specialFeatures;
+    }
+
+    setEmployeeForm(formState);
+    setPhotoPreviews([...employee.photos]);
     setIsEmployeeModalOpen(true);
   };
 
@@ -267,6 +541,198 @@ export default function EmployeeDashboard() {
       </div>
     );
   }
+
+  const RequiredIndicator = () => (
+    <span className="text-red-500 ml-1">*</span>
+  );
+
+  const renderServiceSpecificFields = () => {
+    switch (employeeForm.service) {
+      case 'Physiotherapy':
+        return (
+          <>
+            <div className="mb-4">
+              <Label htmlFor="qualification">Qualification<RequiredIndicator /></Label>
+              <Input
+                id="qualification"
+                value={employeeForm.qualification}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, qualification: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, qualification: !e.target.value.trim()});
+                }}
+                placeholder="e.g., BPT, MPT"
+                className={getInputClassName('qualification')}
+              />
+              {isFormSubmitted && formErrors.qualification && (
+                <p className="mt-1 text-sm text-red-500">Qualification is required</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="yearsOfExperience">Years of Experience<RequiredIndicator /></Label>
+              <Input
+                id="yearsOfExperience"
+                type="number"
+                min="0"
+                value={employeeForm.yearsOfExperience}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, yearsOfExperience: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, yearsOfExperience: !e.target.value.trim()});
+                }}
+                placeholder="Years of experience"
+                className={getInputClassName('yearsOfExperience')}
+              />
+              {isFormSubmitted && formErrors.yearsOfExperience && (
+                <p className="mt-1 text-sm text-red-500">Years of experience is required</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="workedAt">Worked At<RequiredIndicator /></Label>
+              <Input
+                id="workedAt"
+                value={employeeForm.workedAt}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, workedAt: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, workedAt: !e.target.value.trim()});
+                }}
+                placeholder="Previous workplace"
+                className={getInputClassName('workedAt')}
+              />
+              {isFormSubmitted && formErrors.workedAt && (
+                <p className="mt-1 text-sm text-red-500">Work experience is required</p>
+              )}
+            </div>
+          </>
+        );
+      case 'Fitness':
+        return (
+          <>
+            <div className="mb-4">
+              <Label htmlFor="fitnessClubName">Fitness Club Name<RequiredIndicator /></Label>
+              <Input
+                id="fitnessClubName"
+                value={employeeForm.fitnessClubName}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, fitnessClubName: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, fitnessClubName: !e.target.value.trim()});
+                }}
+                placeholder="Name of the fitness club"
+                className={getInputClassName('fitnessClubName')}
+              />
+              {isFormSubmitted && formErrors.fitnessClubName && (
+                <p className="mt-1 text-sm text-red-500">Fitness club name is required</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="trainerName">Trainer Name<RequiredIndicator /></Label>
+              <Input
+                id="trainerName"
+                value={employeeForm.trainerName}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, trainerName: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, trainerName: !e.target.value.trim()});
+                }}
+                placeholder="Full name of the trainer"
+                className={getInputClassName('trainerName')}
+              />
+              {isFormSubmitted && formErrors.trainerName && (
+                <p className="mt-1 text-sm text-red-500">Trainer name is required</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="achievements">Achievements</Label>
+              <Textarea
+                id="achievements"
+                value={employeeForm.achievements}
+                onChange={(e) => setEmployeeForm({...employeeForm, achievements: e.target.value})}
+                placeholder="Notable achievements or certifications"
+                className="min-h-[100px]"
+              />
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="mandatoryAgeGroup">Mandatory Age Group<RequiredIndicator /></Label>
+              <Input
+                id="mandatoryAgeGroup"
+                value={employeeForm.mandatoryAgeGroup}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, mandatoryAgeGroup: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, mandatoryAgeGroup: !e.target.value.trim()});
+                }}
+                placeholder="e.g., 18-60"
+                className={getInputClassName('mandatoryAgeGroup')}
+              />
+              {isFormSubmitted && formErrors.mandatoryAgeGroup && (
+                <p className="mt-1 text-sm text-red-500">Age group is required</p>
+              )}
+            </div>
+          </>
+        );
+      case 'Sports':
+        return (
+          <>
+            <div className="mb-4">
+              <Label htmlFor="trainerCoachName">Trainer/Coach Name<RequiredIndicator /></Label>
+              <Input
+                id="trainerCoachName"
+                value={employeeForm.trainerCoachName}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, trainerCoachName: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, trainerCoachName: !e.target.value.trim()});
+                }}
+                placeholder="Full name of the trainer/coach"
+                className={getInputClassName('trainerCoachName')}
+              />
+              {isFormSubmitted && formErrors.trainerCoachName && (
+                <p className="mt-1 text-sm text-red-500">Trainer/Coach name is required</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="achievements">Achievements</Label>
+              <Textarea
+                id="achievements"
+                value={employeeForm.achievements}
+                onChange={(e) => setEmployeeForm({...employeeForm, achievements: e.target.value})}
+                placeholder="Notable achievements or certifications"
+                className="min-h-[100px]"
+              />
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="mandatoryAgeGroup">Mandatory Age Group<RequiredIndicator /></Label>
+              <Input
+                id="mandatoryAgeGroup"
+                value={employeeForm.mandatoryAgeGroup}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, mandatoryAgeGroup: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, mandatoryAgeGroup: !e.target.value.trim()});
+                }}
+                placeholder="e.g., 18-60"
+                className={getInputClassName('mandatoryAgeGroup')}
+              />
+              {isFormSubmitted && formErrors.mandatoryAgeGroup && (
+                <p className="mt-1 text-sm text-red-500">Age group is required</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <Label htmlFor="specialFeatures">Special Features<RequiredIndicator /></Label>
+              <Textarea
+                id="specialFeatures"
+                value={employeeForm.specialFeatures}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, specialFeatures: e.target.value});
+                  if (isFormSubmitted) setFormErrors({...formErrors, specialFeatures: !e.target.value.trim()});
+                }}
+                placeholder="Special features or facilities"
+                className={`min-h-[100px] ${isFormSubmitted && formErrors.specialFeatures ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+              />
+              {isFormSubmitted && formErrors.specialFeatures && (
+                <p className="mt-1 text-sm text-red-500">Special features are required</p>
+              )}
+            </div>
+          </>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -444,28 +910,29 @@ export default function EmployeeDashboard() {
                         <TableRow key={employee.id}>
                           <TableCell>
                             <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                              {employee.photo ? (
+                              {employee.photos && employee.photos.length > 0 ? (
                                 <img 
-                                  src={employee.photo} 
+                                  src={employee.photos[0]} 
                                   alt={`${employee.name} ${employee.surname}`} 
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
                                     // Fallback to emoji if image fails to load
                                     const target = e.target as HTMLImageElement;
+                                    target.onerror = null;
                                     target.style.display = 'none';
                                     const fallback = document.createElement('div');
-                                    fallback.className = 'text-gray-400 text-xl';
+                                    fallback.className = 'text-xl';
                                     fallback.textContent = 
-                                      employee.service === 'Physiotherapy' ? '👨‍⚕️' : 
+                                      employee.service === 'Physiotherapy' ? '👨‍⚕️' :
                                       employee.service === 'Fitness' ? '💪' : '⚽';
                                     target.parentNode?.insertBefore(fallback, target.nextSibling);
                                   }}
                                 />
                               ) : (
-                                <div className="text-gray-400 text-xl">
-                                  {employee.service === 'Physiotherapy' ? '👨‍⚕️' : 
+                                <span className="text-xl">
+                                  {employee.service === 'Physiotherapy' ? '👨‍⚕️' :
                                    employee.service === 'Fitness' ? '💪' : '⚽'}
-                                </div>
+                                </span>
                               )}
                             </div>
                           </TableCell>
@@ -641,149 +1108,252 @@ export default function EmployeeDashboard() {
 
       {/* Employee Form Modal */}
       <Dialog open={isEmployeeModalOpen} onOpenChange={setIsEmployeeModalOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
+            <DialogTitle>
+              {selectedEmployee ? 'Edit Employee' : 'Add New Employee'}
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleEmployeeSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+          <form onSubmit={handleEmployeeSubmit} className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <Label htmlFor="name">First Name</Label>
                 <Input
                   id="name"
                   value={employeeForm.name}
-                  onChange={(e) => setEmployeeForm({...employeeForm, name: e.target.value})}
-                  required
+                  onChange={(e) => {
+                    setEmployeeForm({...employeeForm, name: e.target.value});
+                    if (isFormSubmitted) {
+                      setFormErrors({...formErrors, name: !e.target.value.trim()});
+                    }
+                  }}
+                  placeholder="First name"
+                  className={getInputClassName('name')}
                 />
+                {isFormSubmitted && formErrors.name && (
+                  <p className="mt-1 text-sm text-red-500">First name is required</p>
+                )}
               </div>
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="surname">Last Name</Label>
                 <Input
                   id="surname"
                   value={employeeForm.surname}
-                  onChange={(e) => setEmployeeForm({...employeeForm, surname: e.target.value})}
-                  required
+                  onChange={(e) => {
+                    setEmployeeForm({...employeeForm, surname: e.target.value});
+                    if (isFormSubmitted) {
+                      setFormErrors({...formErrors, surname: !e.target.value.trim()});
+                    }
+                  }}
+                  placeholder="Last name"
+                  className={getInputClassName('surname')}
                 />
+                {isFormSubmitted && formErrors.surname && (
+                  <p className="mt-1 text-sm text-red-500">Last name is required</p>
+                )}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={employeeForm.email}
-                onChange={(e) => setEmployeeForm({...employeeForm, email: e.target.value})}
-                required
-              />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  value={employeeForm.phone}
+                  onChange={(e) => {
+                    setEmployeeForm({...employeeForm, phone: e.target.value});
+                    if (isFormSubmitted) {
+                      setFormErrors({...formErrors, phone: !e.target.value.trim()});
+                    }
+                  }}
+                  placeholder="Phone number"
+                  className={getInputClassName('phone')}
+                />
+                {isFormSubmitted && formErrors.phone && (
+                  <p className="mt-1 text-sm text-red-500">Phone number is required</p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={employeeForm.email}
+                  onChange={(e) => {
+                    setEmployeeForm({...employeeForm, email: e.target.value});
+                    if (isFormSubmitted) {
+                      const isValid = /\S+@\S+\.\S+/.test(e.target.value);
+                      setFormErrors({...formErrors, email: !isValid});
+                    }
+                  }}
+                  placeholder="Email address"
+                  className={getInputClassName('email')}
+                />
+                {isFormSubmitted && formErrors.email && (
+                  <p className="mt-1 text-sm text-red-500">Valid email is required</p>
+                )}
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
+
+            <div>
+              <Label htmlFor="address">Address</Label>
               <Input
-                id="phone"
-                value={employeeForm.phone}
-                onChange={(e) => setEmployeeForm({...employeeForm, phone: e.target.value})}
-                required
+                id="address"
+                value={employeeForm.address}
+                onChange={(e) => {
+                  setEmployeeForm({...employeeForm, address: e.target.value});
+                  if (isFormSubmitted) {
+                    setFormErrors({...formErrors, address: !e.target.value.trim()});
+                  }
+                }}
+                placeholder="Full address"
+                className={getInputClassName('address')}
               />
+              {isFormSubmitted && formErrors.address && (
+                <p className="mt-1 text-sm text-red-500">Address is required</p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="service">Service</Label>
+
+            <div>
+              <Label>Service Type</Label>
               <Select
                 value={employeeForm.service}
-                onValueChange={(value) => setEmployeeForm({...employeeForm, service: value as any})}
+                onValueChange={(value: 'Physiotherapy' | 'Fitness' | 'Sports') => {
+                  setEmployeeForm({...employeeForm, service: value});
+                  if (isFormSubmitted) {
+                    setFormErrors({...formErrors, service: !value});
+                  }
+                }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select service" />
+                <SelectTrigger className={getSelectClassName('service')}>
+                  <SelectValue placeholder="Select service type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Physiotherapy">Physiotherapy</SelectItem>
                   <SelectItem value="Fitness">Fitness</SelectItem>
                   <SelectItem value="Sports">Sports</SelectItem>
                 </SelectContent>
+                {isFormSubmitted && formErrors.service && (
+                  <p className="mt-1 text-sm text-red-500">Please select a service type</p>
+                )}
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="photo">
-                {employeeForm.service === 'Physiotherapy' 
-                  ? 'Physiotherapist Photo' 
-                  : employeeForm.service === 'Fitness' 
-                    ? 'Fitness Club Photo' 
-                    : 'Sports Club Photo'}
-              </Label>
-              <div className="mt-1 flex items-center">
-                <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
-                  {photoPreview ? (
-                    <img 
-                      src={photoPreview} 
-                      alt="Preview" 
+            {/* Service Specific Fields - Only show when a service is selected */}
+            {employeeForm.service && (
+              <div className="border-t pt-4 mt-2">
+                <h3 className="font-medium mb-4">{employeeForm.service} Details</h3>
+                <div className="mb-4">
+                  <Label htmlFor="serviceSince">Service Since (Year)</Label>
+                  <Input
+                    id="serviceSince"
+                    type="number"
+                    min="1900"
+                    max={new Date().getFullYear()}
+                    value={employeeForm.serviceSince}
+                    onChange={(e) => {
+                      setEmployeeForm({...employeeForm, serviceSince: e.target.value});
+                      if (isFormSubmitted) {
+                        setFormErrors({...formErrors, serviceSince: !e.target.value});
+                      }
+                    }}
+                    placeholder="Year"
+                    className={getInputClassName('serviceSince')}
+                  />
+                  {isFormSubmitted && formErrors.serviceSince && (
+                    <p className="mt-1 text-sm text-red-500">Service year is required</p>
+                  )}
+                </div>
+                {renderServiceSpecificFields()}
+              </div>
+            )}
+
+            <div className="border-t pt-4">
+              <Label>Photos (1-2 required)</Label>
+              <div className="mt-2 flex flex-wrap gap-4">
+                {/* Display existing photo previews */}
+                {photoPreviews.map((preview, index) => (
+                  <div key={index} className="relative w-24 h-24 rounded-md overflow-hidden border border-gray-200">
+                    <img
+                      src={preview}
+                      alt={`Preview ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
-                  ) : (
-                    <div className="text-gray-400 text-2xl">
-                      {employeeForm.service === 'Physiotherapy' ? '👨‍⚕️' : 
-                       employeeForm.service === 'Fitness' ? '💪' : '⚽'}
-                    </div>
-                  )}
-                </div>
-                <div className="ml-4">
-                  <label
-                    htmlFor="photo-upload"
-                    className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                  >
-                    {photoPreview ? 'Change' : 'Upload'}
-                  </label>
-                  <input
-                    id="photo-upload"
-                    name="photo-upload"
-                    type="file"
-                    className="sr-only"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                  />
-                  {photoPreview && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setPhotoPreview(null);
-                        setEmployeeForm(prev => ({ ...prev, photo: '' }));
+                      className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs transform translate-x-1/2 -translate-y-1/2 hover:bg-red-600"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const newPhotos = [...employeeForm.photos];
+                        newPhotos.splice(index, 1);
+                        setEmployeeForm({...employeeForm, photos: newPhotos});
+                        const newPreviews = [...photoPreviews];
+                        newPreviews.splice(index, 1);
+                        setPhotoPreviews(newPreviews);
                       }}
-                      className="ml-2 text-sm text-red-600 hover:text-red-700"
                     >
-                      Remove
+                      ×
                     </button>
-                  )}
-                </div>
+                  </div>
+                ))}
+
+                {/* Show upload button if we have less than 2 photos */}
+                {photoPreviews.length < 2 && (
+                  <div 
+                    className={`w-24 h-24 flex flex-col items-center justify-center border-2 border-dashed rounded-md cursor-pointer ${
+                      photoError ? 'border-red-300 bg-red-50' : 'border-gray-300 hover:border-primary-500 hover:bg-gray-50'
+                    }`}
+                    onClick={() => {
+                      const fileInput = document.getElementById('photo-upload') as HTMLInputElement;
+                      fileInput.value = ''; // Reset input to allow re-uploading the same file
+                      fileInput?.click();
+                    }}
+                  >
+                    <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span className="text-xs text-gray-500 mt-1">
+                      Add {photoPreviews.length === 0 ? '1-2' : '1 more'}
+                    </span>
+                  </div>
+                )}
               </div>
+              {photoError && <p className="text-sm text-red-500 mt-1">{photoError}</p>}
+              
+              <input
+                id="photo-upload"
+                name="photo-upload"
+                type="file"
+                className="sr-only"
+                accept="image/*"
+                multiple
+                onChange={handlePhotoChange}
+              />
+              
               <p className={`mt-1 text-xs ${photoError ? 'text-red-600' : 'text-gray-500'}`}>
                 {photoError || (
                   employeeForm.service === 'Physiotherapy' 
-                    ? 'Upload a professional photo of the physiotherapist (required)' 
+                    ? `Upload ${photoPreviews.length === 0 ? '1-2' : '1 more'} professional photo${photoPreviews.length === 0 ? 's' : ''} of the physiotherapist` 
                     : employeeForm.service === 'Fitness' 
-                      ? 'Upload the Fitness Club logo or photo (required)'
-                      : 'Upload the Sports Club logo or photo (required)'
+                      ? `Upload ${photoPreviews.length === 0 ? '1-2' : '1 more'} photo${photoPreviews.length === 0 ? 's' : ''} of the fitness club`
+                      : `Upload ${photoPreviews.length === 0 ? '1-2' : '1 more'} photo${photoPreviews.length === 0 ? 's' : ''} of the sports club`
                 )}
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                value={employeeForm.address}
-                onChange={(e) => setEmployeeForm({...employeeForm, address: e.target.value})}
-                required
-              />
-            </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => {
-                setIsEmployeeModalOpen(false);
-                setPhotoError(null);
-              }}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => {
+                  setIsEmployeeModalOpen(false);
+                  setPhotoError(null);
+                }}
+              >
                 Cancel
               </Button>
               <Button 
                 type="submit"
-                disabled={!employeeForm.photo}
-                className={!employeeForm.photo ? 'opacity-70 cursor-not-allowed' : ''}
+                className="w-full"
               >
                 {selectedEmployee ? 'Update' : 'Add'} Employee
               </Button>

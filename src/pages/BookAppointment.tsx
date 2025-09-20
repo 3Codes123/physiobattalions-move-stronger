@@ -8,7 +8,7 @@ import BookingModal from "@/components/BookingModal";
 
 export default function BookAppointment() {
   const [isModalOpen, setIsModalOpen] = useState(true);
-  const [selectedService, setSelectedService] = useState<"physiotherapy" | "fitness" | "sports">("physiotherapy");
+  const [selectedService, setSelectedService] = useState<"physiotherapy" | "fitness" | "sports">("" as any);
 
   return (
     <div className="min-h-screen flex flex-col">
