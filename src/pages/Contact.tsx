@@ -18,12 +18,29 @@ export default function Contact() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const isValidPhoneNumber = (phone: string) => {
+    // Validate 10-digit Indian phone number
+    const phoneRegex = /^[6-9]\d{9}$/;
+    return phoneRegex.test(phone);
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Special handling for phone input
+    if (name === 'phone') {
+      // Allow only numbers and limit to 10 digits
+      const phoneValue = value.replace(/\D/g, '').slice(0, 10);
+      setFormData(prev => ({
+        ...prev,
+        [name]: phoneValue
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -70,7 +87,7 @@ export default function Contact() {
                     required
                     value={formData.name}
                     onChange={handleChange}
-                    placeholder="John Doe"
+                    placeholder="Enter your name"
                     className="w-full"
                   />
                 </div>
@@ -98,16 +115,24 @@ export default function Contact() {
                       <Phone className="h-4 w-4" />
                       Phone *
                     </label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={handleChange}
-                      placeholder="+1 (555) 123-4567"
-                      className="w-full"
-                    />
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <div className="flex items-center">
+                          <span className="text-gray-500">+91</span>
+                        </div>
+                      </div>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        required
+                        value={formData.phone}
+                        onChange={handleChange}
+                        placeholder="9876543210"
+                        className="pl-14 w-full"
+                        maxLength={10}
+                      />
+                    </div>
                   </div>
                 </div>
                 

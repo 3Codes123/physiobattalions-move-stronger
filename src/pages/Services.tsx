@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImageCarousel } from "@/components/ui/image-carousel";
+import BookingModal from "@/components/BookingModal";
 
 export default function ServicesPage() {
   const navigate = useNavigate();
@@ -131,6 +132,11 @@ export default function ServicesPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
+      <BookingModal 
+        open={bookingOpen} 
+        onOpenChange={setBookingOpen} 
+        preselectService={preselectService}
+      />
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="bg-gradient-to-r from-primary to-primary/90 text-white py-20">

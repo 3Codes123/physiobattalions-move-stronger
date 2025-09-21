@@ -96,7 +96,7 @@ export default function BookingForm() {
             required
             value={formData.name}
             onChange={handleChange}
-            placeholder="John Doe"
+            placeholder="Enter your name"
           />
         </div>
 
